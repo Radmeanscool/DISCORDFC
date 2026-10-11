@@ -38,6 +38,10 @@ function profileEmbed(profile: PlayerProfile): EmbedBuilder {
   const detailed = profile.detailedSkills ? formatDetailedSkills(profile) : 'Jalankan `/skills` untuk menginisialisasi detailed skill state.';
   const gameplay = profile.detailedSkills ? formatGameplayStatus(profile) : 'Legacy profile; gameplay state akan dimigrasikan saat `/skills` atau `/next-week`.';
   const club = profile.clubState;
+  const nextFixture = club?.fixtures.find((fixture) => !fixture.played);
+  const fixtureText = nextFixture
+    ? `MD ${nextFixture.matchday} · ${nextFixture.homeClub} vs ${nextFixture.awayClub}\n${nextFixture.playedAt?.slice(0, 10) ?? 'TBA'}`
+    : 'Tidak ada fixture tersisa';
   return new EmbedBuilder()
     .setColor(BRAND_COLOR)
     .setTitle(`${profile.displayName} — Football Rising Star`)
@@ -45,7 +49,7 @@ function profileEmbed(profile: PlayerProfile): EmbedBuilder {
     .addFields(
       { name: 'Condition', value: `HP **${profile.hp}/${profile.maxHp}**\nEnergy **${profile.energy}/${profile.maxEnergy}**\nMoney **${formatMoney(profile.money)}**`, inline: true },
       { name: 'Career', value: `Level **${profile.level}**\nEXP **${profile.totalExp}**\nAge **${profile.age}**`, inline: true },
-      { name: 'Club', value: club ? `Club rating **${getClubRating(profile)}**\nPrestige **${club.prestige}**\nAssets **${formatMoney(club.assets)}**\n${club.formation} · ${TACTICS[club.tactic].name}` : 'Gunakan `/club` untuk membuat state klub.', inline: true },
+      { name: 'Club', value: club ? `Club rating **${getClubRating(profile)}**\nPrestige **${club.prestige}**\nAssets **${formatMoney(club.assets)}**\n${club.formation} · ${TACTICS[club.tactic].name}\nNext: ${fixtureText}` : 'Gunakan `/club` untuk membuat state klub.', inline: true },
       { name: 'Macro abilities', value: abilities || 'Belum ada ability.' },
       { name: 'Detailed skills', value: detailed },
       { name: 'Gameplay state', value: gameplay },
@@ -1408,14 +1412,16 @@ export async function handleComponent(interaction: ButtonInteraction | StringSel
       const result = playClubMatch(profile);
       await store.save(result.profile);
       const label = result.outcome === 'WIN' ? 'VICTORY' : result.outcome === 'DRAW' ? 'DRAW' : 'DEFEAT';
-      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(BRAND_COLOR).setTitle(`Club Match · ${label}`).setDescription(result.commentary.join('\n')).addFields({ name: 'Score', value: `${result.homeGoals}–${result.awayGoals} (HT ${result.halftime.homeGoals}–${result.halftime.awayGoals})`, inline: true }, { name: 'Fixture', value: `${result.fixture.homeClub} vs ${result.fixture.awayClub}`, inline: true }, { name: 'MVP', value: result.mvp.name, inline: true })], components: playerClubControls(interaction.user.id) });
+      const nextFixture = result.profile.clubState?.fixtures.find((fixture) => !fixture.played);
+      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(BRAND_COLOR).setTitle(`Club Match · ${label}`).setDescription(result.commentary.join('\n')).addFields({ name: 'Score', value: `${result.homeGoals}–${result.awayGoals} (HT ${result.halftime.homeGoals}–${result.halftime.awayGoals})`, inline: true }, { name: 'Fixture', value: `${result.fixture.homeClub} vs ${result.fixture.awayClub}`, inline: true }, { name: 'MVP', value: result.mvp.name, inline: true }, { name: 'Next fixture', value: nextFixture ? `MD ${nextFixture.matchday} · ${nextFixture.homeClub} vs ${nextFixture.awayClub}\n${nextFixture.playedAt?.slice(0, 10) ?? 'TBA'}` : 'Season selesai', inline: false })], components: playerClubControls(interaction.user.id) });
       return;
     }
 
     if (action === 'player-league') {
       const enriched = ensureClubState(recoverPlayer(profile));
       await store.save(enriched);
-      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(BRAND_COLOR).setTitle(`${enriched.club} · League Table`).setDescription(formatClubStanding(enriched)).addFields({ name: 'Progress', value: `Matchday ${enriched.league.matchday}\nPoints ${enriched.league.points}\nRecord ${enriched.league.wins}-${enriched.league.draws}-${enriched.league.losses}` })], components: playerClubControls(interaction.user.id) });
+      const nextFixture = getNextClubFixture(enriched);
+      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(BRAND_COLOR).setTitle(`${enriched.club} · League Table`).setDescription(formatClubStanding(enriched)).addFields({ name: 'Progress', value: `Matchday ${enriched.league.matchday}\nPoints ${enriched.league.points}\nRecord ${enriched.league.wins}-${enriched.league.draws}-${enriched.league.losses}`, inline: true }, { name: 'Next fixture', value: nextFixture ? `MD ${nextFixture.matchday}\n${nextFixture.homeClub} vs ${nextFixture.awayClub}\n${nextFixture.playedAt?.slice(0, 10) ?? 'TBA'}` : 'Season selesai', inline: true })], components: playerClubControls(interaction.user.id) });
       return;
     }
 
