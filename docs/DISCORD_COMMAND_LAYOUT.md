@@ -4,7 +4,7 @@ The guild registry is organized around the three gameplay modes rather than a fl
 
 ## Player Mode
 
-Use `/player` for the individual career. The command groups are:
+The normal user does not need `/player`; open `/play` and use the Player buttons. `/player` remains a fallback command surface only when `REGISTER_FALLBACK_COMMANDS=true` is used during command registration. Its command groups are:
 
 - `/player career ...` for profile, match, weekly progression, injury, contract, and retirement.
 - `/player training ...` for abilities, detailed skills, trainers, tricks, and culture study.
@@ -15,15 +15,15 @@ The Player root command maps to existing internal handler names, so this is a Di
 
 ## Coach Mode
 
-Use `/coach` for management career. The supported subcommands are `career`, `profile`, `event`, `round`, `exp`, `formation`, `tactic`, `job`, `retire`, `rebirth`, and `champions`. Here `event` means a pending **Coach management decision** and not a Player daily event. Formation, tactic, and Champions actions default to Coach state when invoked through the Coach root.
+Use Coach buttons from Game Home for management career. `/coach` remains a fallback command surface when `REGISTER_FALLBACK_COMMANDS=true`; supported subcommands are `career`, `profile`, `event`, `round`, `exp`, `formation`, `tactic`, `job`, `retire`, `rebirth`, and `champions`. Here `event` means a pending **Coach management decision** and not a Player daily event. Formation, tactic, and Champions actions default to Coach state when invoked through the Coach root.
 
 ## Versus Mode
 
-Use `/versus` for system-managed multiplayer. The supported subcommands are `home`, `profile`, `roster`, `lineup`, `bid`, `standings`, `round`, `season`, and the evidence-limited `join` fallback. Matchmaking remains system-managed; no user-created club or technical `/versus-matchmake` command is exposed.
+Use Versus buttons from Game Home for system-managed multiplayer. `/versus` remains a fallback command surface when `REGISTER_FALLBACK_COMMANDS=true`; supported subcommands are `home`, `profile`, `roster`, `lineup`, `bid`, `standings`, `round`, `season`, and the evidence-limited `join` fallback. Matchmaking remains system-managed; no user-created club or technical `/versus-matchmake` command is exposed.
 
 ## Help and migration
 
-`/help` explains the mode-first workflow. The guild registry now contains six root commands: `/play`, `/player`, `/coach`, `/versus`, `/help`, and `/admin`. `/play` is the recommended user entry; the grouped roots remain available as explicit fallback and operator surfaces. The previous flat commands are no longer registered, preventing Discord's command menu from mixing all gameplay modes. Internal handler aliases remain in source only to preserve domain routing and test compatibility.
+`/help` explains the mode-first workflow. The default guild registry contains three root commands: `/play`, `/help`, and `/admin`. `/play` is the only gameplay entry point; `/player`, `/coach`, and `/versus` remain in source as compatibility handlers but are not registered unless `REGISTER_FALLBACK_COMMANDS=true`. This keeps Discord's command menu focused while preserving a recovery path for operators and testing.
 
 All mutating roots are included in the mutation rate-limit bucket. Every chat input command is acknowledged before rate limiting and per-user queue work. Component interactions are also acknowledged centrally; `handleComponent` only defers when an interaction has not already been acknowledged. The handler then resolves the root/subcommand path to the existing internal command name and runs the original isolated domain logic.
 
@@ -31,4 +31,4 @@ All mutating roots are included in the mutation rate-limit bucket. Every chat in
 
 The normal player journey is `/play` → Game Home → mode menu → contextual action panel. Player Home now exposes weekly update, match, training, daily reward, injury/recovery, honors, contract, Champions, and Club Office navigation. Club Office exposes match, league table, squad, formation/tactic, and market panels. Coach Home exposes round, management decision, EXP allocation, strategy, job offers, and Champions panels. Versus Home already exposes assignment, Next Battle, lineup builder, results, standings, market, rewards, schedule, rankings, and sponsor surfaces.
 
-Every new component ID remains owner-bound. The component adapter acknowledges the interaction centrally and returns the user to the appropriate mode menu after an action. Slash subcommands remain as fallback/operator surfaces because Discord cannot expose every possible state transition as a persistent native button, but normal gameplay does not require typing each operation.
+Every new component ID remains owner-bound. The component adapter acknowledges the interaction centrally and returns the user to the appropriate mode menu after an action. Slash subcommands remain as optional fallback/operator surfaces because Discord cannot expose every possible state transition as a persistent native button, but normal gameplay does not require typing each operation. Registration uses `REGISTER_FALLBACK_COMMANDS=false` by default.

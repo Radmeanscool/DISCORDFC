@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { commandDefinitions, resolveModeCommand } from '../src/discord/commands.js';
+import { commandDefinitions, menuFirstCommandDefinitions, resolveModeCommand } from '../src/discord/commands.js';
 
 test('Discord registry groups Player, Coach, and Versus modes without technical matchmake command', () => {
   const roots = new Map(commandDefinitions.map((command) => [command.name, command]));
@@ -39,6 +39,13 @@ test('Discord registry groups Player, Coach, and Versus modes without technical 
   assert.equal(resolveModeCommand('player', 'event', 'career'), 'player-event-disabled');
   assert.equal(resolveModeCommand('coach', 'formation'), 'formation');
   assert.equal(resolveModeCommand('versus', 'bid'), 'versus-bid');
+});
+
+test('menu-first registration exposes only entry, help, and admin commands', () => {
+  assert.deepEqual(menuFirstCommandDefinitions.map((command) => command.name), ['play', 'help', 'admin']);
+  assert.equal(menuFirstCommandDefinitions.some((command) => command.name === 'player'), false);
+  assert.equal(menuFirstCommandDefinitions.some((command) => command.name === 'coach'), false);
+  assert.equal(menuFirstCommandDefinitions.some((command) => command.name === 'versus'), false);
 });
 
 test('Postgres schema contains canonical Versus projection tables and economy columns', async () => {
