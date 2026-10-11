@@ -464,7 +464,7 @@ export async function handleCommand(interaction: ChatInputCommandInteraction, st
       const result = trainPlayer(profile, ability);
       await store.save(result.profile);
       const levelText = result.levelUp ? '\n**Level ability naik.**' : '';
-      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(BRAND_COLOR).setTitle('Training selesai').setDescription(`**${formatAbility(result.ability)}** bertambah dari **${result.statBefore}** menjadi **${result.statAfter}**. EXP diperoleh: **${result.expGained}**.${levelText}`).addFields({ name: 'Sisa energi', value: `${result.profile.energy}/${result.profile.maxEnergy}`, inline: true }, { name: 'Player rating', value: `${getRating(result.profile)}`, inline: true })] });
+      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(BRAND_COLOR).setTitle('Training selesai').setDescription(`**${formatAbility(result.ability)}** bertambah dari **${result.statBefore}** menjadi **${result.statAfter}**. EXP diperoleh: **${result.expGained}**.${levelText}`).addFields({ name: 'Sisa energi', value: `${result.profile.energy}/${result.profile.maxEnergy}`, inline: true }, { name: 'Player rating', value: `${getRating(result.profile)}`, inline: true }, { name: 'Next step', value: 'Lanjutkan training lain atau tekan **Next Week** pada Weekly Hub.', inline: false })], components: playerWeeklyControls(interaction.user.id, result.profile.weekStage ?? 'READY') });
       return;
     }
 
@@ -484,7 +484,7 @@ export async function handleCommand(interaction: ChatInputCommandInteraction, st
       const skill = interaction.options.getString('skill', true) as DetailedSkillId;
       const result = trainDetailedSkill(profile, skill);
       await store.save(result.profile);
-      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(BRAND_COLOR).setTitle('Detailed training dimulai').setDescription(`**${DETAILED_SKILL_LABELS[result.skill]}**: Lv ${result.levelBefore} · reward **+${result.expGained} EXP** pada week ${result.profile.activeTraining?.completeAtWeek}.`).addFields({ name: 'Condition', value: `Energy ${result.profile.energy}/${result.profile.maxEnergy}`, inline: true }, { name: 'Macro rating', value: `${getRating(result.profile)}`, inline: true }).setFooter({ text: 'Gunakan /next-week untuk menyelesaikan training order.' })] });
+      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(BRAND_COLOR).setTitle('Detailed training dimulai').setDescription(`**${DETAILED_SKILL_LABELS[result.skill]}**: Lv ${result.levelBefore} · reward **+${result.expGained} EXP** pada week ${result.profile.activeTraining?.completeAtWeek}.`).addFields({ name: 'Condition', value: `Energy ${result.profile.energy}/${result.profile.maxEnergy}`, inline: true }, { name: 'Macro rating', value: `${getRating(result.profile)}`, inline: true }).setFooter({ text: 'Gunakan tombol **Next Week** untuk menyelesaikan training order.' })], components: playerWeeklyControls(interaction.user.id, result.profile.weekStage ?? 'READY') });
       return;
     }
 
@@ -1626,7 +1626,7 @@ export async function handleComponent(interaction: ButtonInteraction | StringSel
       const ability = interaction.values[0] as AbilityId;
       const result = trainPlayer(profile, ability);
       await store.save(result.profile);
-      await interaction.editReply({ content: `**${formatAbility(result.ability)}** naik dari **${result.statBefore}** menjadi **${result.statAfter}**. EXP: **${result.expGained}**.`, components: careerControls(interaction.user.id) });
+      await interaction.editReply({ content: `**${formatAbility(result.ability)}** naik dari **${result.statBefore}** menjadi **${result.statAfter}**. EXP: **${result.expGained}**.\n\nLanjutkan dengan training lain atau tekan **Next Week** dari Weekly Hub.`, components: playerWeeklyControls(interaction.user.id, result.profile.weekStage ?? 'READY') });
       return;
     }
 
@@ -1634,7 +1634,7 @@ export async function handleComponent(interaction: ButtonInteraction | StringSel
       const skill = interaction.values[0] as DetailedSkillId;
       const result = trainDetailedSkill(profile, skill);
       await store.save(result.profile);
-      await interaction.editReply({ content: `**${DETAILED_SKILL_LABELS[result.skill]}** naik dari Lv ${result.levelBefore} menjadi **${result.levelAfter}**. EXP: **${result.expGained}**.`, components: careerControls(interaction.user.id) });
+      await interaction.editReply({ content: `**${DETAILED_SKILL_LABELS[result.skill]}** training dimulai. Reward **+${result.expGained} EXP** akan diproses pada week ${result.profile.activeTraining?.completeAtWeek}.`, components: playerWeeklyControls(interaction.user.id, result.profile.weekStage ?? 'READY') });
       return;
     }
 
@@ -1643,7 +1643,7 @@ export async function handleComponent(interaction: ButtonInteraction | StringSel
       const pending = profile.unassignedMatchExp ?? 0;
       const result = assignMatchExp(profile, { [skill]: pending });
       await store.save(result.profile);
-      await interaction.editReply({ embeds: [profileEmbed(result.profile).setTitle(`EXP Allocated · ${DETAILED_SKILL_LABELS[skill]}`).setDescription(`Seluruh pending match EXP (**${pending}**) dialokasikan ke **${DETAILED_SKILL_LABELS[skill]}**.`)], components: careerControls(interaction.user.id) });
+      await interaction.editReply({ embeds: [playerWeeklyEmbed(result.profile).setTitle(`EXP Allocated · ${DETAILED_SKILL_LABELS[skill]}`).setDescription(`Seluruh pending match EXP (**${pending}**) dialokasikan ke **${DETAILED_SKILL_LABELS[skill]}**.\n\nWeekly cycle siap dilanjutkan.`)], components: playerWeeklyControls(interaction.user.id, result.profile.weekStage ?? 'READY') });
       return;
     }
 
