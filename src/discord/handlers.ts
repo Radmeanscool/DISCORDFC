@@ -11,7 +11,7 @@ import { assignVersusMatchmaking, createVersusSeason, formatVersusBattle, getVer
 import { availableVersusCoin, createVersusMarket, placeVersusBid, settleExpiredVersusMarket } from '../domain/versus-economy.js';
 import { ABILITY_LABELS, COACH_ABILITIES, COACH_ABILITY_LABELS, DETAILED_SKILL_LABELS, DETAILED_SKILLS, FORMATIONS, HONOR_CATEGORY_LABELS, POSITION_LABELS, TACTICS, TRAINER_CATALOG, TRICK_CATALOG, type AbilityId, type CoachAbilityId, type CultureSubject, type DetailedSkillId, type FormationId, type PlayerProfile, type Position, type TacticId, type VersusSeason } from '../domain/types.js';
 import type { BatchPlayerStore, PlayerStore, VersusGroupLockStore } from '../storage/json-store.js';
-import { careerControls, championsControls, coachControls, coachEventControls, coachExpControls, coachJobControls, coachStrategyControls, detailedTrainingControls, mainMenuControls, pendingExpControls, playerClubControls, playerCreationControls, playerCultureControls, playerInjuryControls, playerStrategyControls, trainingControls, versusFinalizeControls, versusHomeControls, versusMarketControls, versusPositionControls, versusRankingControls, versusSetupControls, versusSponsorControls } from './components.js';
+import { careerControls, championsControls, coachControls, coachEventControls, coachExpControls, coachJobControls, coachStrategyControls, detailedTrainingControls, mainMenuControls, pendingExpControls, playerClubControls, playerCreationControls, playerCultureControls, playerInjuryControls, playerStrategyControls, playerWeeklyControls, trainingControls, versusFinalizeControls, versusHomeControls, versusMarketControls, versusPositionControls, versusRankingControls, versusSetupControls, versusSponsorControls } from './components.js';
 import { log } from '../observability/logger.js';
 import { resolveModeCommand } from './commands.js';
 
@@ -56,6 +56,22 @@ function profileEmbed(profile: PlayerProfile): EmbedBuilder {
       { name: 'Career statistics', value: `Appearances **${profile.career.appearances}** · W-D-L **${profile.career.wins}-${profile.career.draws}-${profile.career.losses}**\nGoals **${profile.career.goals}** · Assists **${profile.career.assists}** · Clean sheets **${profile.career.cleanSheets}**` }
     )
     .setFooter({ text: 'Football Rising Star Discord · Formula pertandingan modular untuk kalibrasi internal.' });
+}
+
+function playerWeeklyEmbed(profileInput: PlayerProfile): EmbedBuilder {
+  const profile = ensureGameplayState(profileInput);
+  const stage = profile.weekStage ?? 'READY';
+  const stageLabel: Record<NonNullable<PlayerProfile['weekStage']>, string> = {
+    READY: 'Siap menyiapkan minggu berikutnya',
+    MATCH_READY: 'Weekly update selesai · pertandingan siap dimainkan',
+    EXP_PENDING: 'EXP pertandingan menunggu alokasi',
+    SEASON_BREAK: 'Season break · lihat hasil penghargaan'
+  };
+  const nextAction = stage === 'READY' || stage === 'SEASON_BREAK' ? 'Tekan **Next Week** untuk memproses recovery, training, dan weekly update.' : stage === 'MATCH_READY' ? 'Tekan **Play Match** untuk melihat simulasi pertandingan.' : 'Pilih **Assign EXP** pada panel hasil pertandingan sebelum memulai minggu berikutnya.';
+  return profileEmbed(profile)
+    .setTitle(`${profile.displayName} · Player Weekly Hub`)
+    .setDescription(`Week **${profile.seasonWeek ?? 1}** · Stage **${stageLabel[stage]}**\n${nextAction}`)
+    .addFields({ name: 'Weekly route', value: 'Status → Training/Personal → Next Week → Match → Assign EXP → League', inline: false });
 }
 
 function createPlayerProfile(userId: string, displayName: string, position: Position, now = new Date()): PlayerProfile {
@@ -1101,7 +1117,7 @@ export async function handleComponent(interaction: ButtonInteraction | StringSel
       } else {
         const enriched = ensureGameplayState(profile);
         await store.save(enriched);
-        await interaction.editReply({ embeds: [profileEmbed(enriched)], components: careerControls(interaction.user.id) });
+        await interaction.editReply({ embeds: [playerWeeklyEmbed(enriched)], components: playerWeeklyControls(interaction.user.id, enriched.weekStage ?? 'READY') });
       }
       return;
     }
@@ -1138,7 +1154,7 @@ export async function handleComponent(interaction: ButtonInteraction | StringSel
       if (!['GK', 'DF', 'MF', 'FW'].includes(position)) throw new Error('Posisi Player tidak valid.');
       profile = createPlayerProfile(interaction.user.id, interaction.user.globalName ?? interaction.user.username, position, new Date());
       await store.save(profile);
-      await interaction.editReply({ embeds: [profileEmbed(profile)], components: careerControls(interaction.user.id) });
+      await interaction.editReply({ embeds: [playerWeeklyEmbed(profile)], components: playerWeeklyControls(interaction.user.id, profile.weekStage ?? 'READY') });
       return;
     }
 
@@ -1579,14 +1595,18 @@ export async function handleComponent(interaction: ButtonInteraction | StringSel
     if (action === 'skills') {
       const enriched = ensureGameplayState(profile);
       await store.save(enriched);
-      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(BRAND_COLOR).setTitle(`${enriched.displayName} · Detailed Skills`).setDescription(formatDetailedSkills(enriched)).addFields({ name: 'Gameplay state', value: formatGameplayStatus(enriched) })], components: careerControls(interaction.user.id) });
+      if (enriched.weekStage === 'EXP_PENDING') {
+        await interaction.editReply({ embeds: [new EmbedBuilder().setColor(BRAND_COLOR).setTitle(`${enriched.displayName} · Assign Match EXP`).setDescription(`Pending EXP: **${enriched.unassignedMatchExp ?? 0}**. Pilih satu detailed skill untuk melanjutkan weekly cycle.`)], components: pendingExpControls(interaction.user.id) });
+      } else {
+        await interaction.editReply({ embeds: [new EmbedBuilder().setColor(BRAND_COLOR).setTitle(`${enriched.displayName} · Detailed Skills`).setDescription(formatDetailedSkills(enriched)).addFields({ name: 'Gameplay state', value: formatGameplayStatus(enriched) })], components: playerWeeklyControls(interaction.user.id, enriched.weekStage ?? 'READY') });
+      }
       return;
     }
 
     if (action === 'next-week') {
       const result = preparePlayerWeek(profile);
       await store.save(result.profile);
-      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(BRAND_COLOR).setTitle(`Weekly Update · Week ${result.week}`).setDescription(result.narrative.join('\n')).addFields({ name: 'Stage', value: result.stage, inline: true }, { name: 'Condition', value: `HP ${result.profile.hp}/${result.profile.maxHp}\nEnergy ${result.profile.energy}/${result.profile.maxEnergy}`, inline: true }, { name: 'Next step', value: 'Tekan Play match untuk melanjutkan.', inline: false })], components: careerControls(interaction.user.id) });
+      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(BRAND_COLOR).setTitle(`Weekly Update · Week ${result.week}`).setDescription(result.narrative.join('\n')).addFields({ name: 'Stage', value: result.stage, inline: true }, { name: 'Condition', value: `HP ${result.profile.hp}/${result.profile.maxHp}\nEnergy ${result.profile.energy}/${result.profile.maxEnergy}`, inline: true }, { name: 'Next step', value: 'Tekan Play Match untuk melanjutkan.', inline: false })], components: playerWeeklyControls(interaction.user.id, result.stage) });
       return;
     }
 
@@ -1630,7 +1650,7 @@ export async function handleComponent(interaction: ButtonInteraction | StringSel
       await store.save(result.profile);
       const outcomeLabel = result.match?.outcome === 'WIN' ? 'VICTORY' : result.match?.outcome === 'DRAW' ? 'DRAW' : result.match?.outcome === 'LOSS' ? 'DEFEAT' : 'NO MATCH';
       const matchText = result.match ? `${result.profile.club} ${result.match.playerGoals}–${result.match.opponentGoals} ${result.match.opponent}` : 'Tidak ada match karena kondisi atau cedera.';
-      const components = result.expAwaitingAssignment > 0 ? pendingExpControls(interaction.user.id) : careerControls(interaction.user.id);
+      const components = result.expAwaitingAssignment > 0 ? pendingExpControls(interaction.user.id) : playerWeeklyControls(interaction.user.id, result.stage);
       await interaction.editReply({ embeds: [new EmbedBuilder().setColor(BRAND_COLOR).setTitle(`${outcomeLabel} · Week ${result.week}`).setDescription(`${matchText}\n\n${result.narrative.join('\n')}`).addFields({ name: 'Player rating', value: result.match ? `${result.match.playerRating}` : '-', inline: true }, { name: 'Pending EXP', value: `${result.expAwaitingAssignment}`, inline: true }, { name: 'Next step', value: result.expAwaitingAssignment > 0 ? 'Pilih skill untuk mengalokasikan EXP.' : 'Kembali ke Weekly Update untuk cycle berikutnya.', inline: false })], components });
       return;
     }

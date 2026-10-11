@@ -97,6 +97,34 @@ export function careerControls(userId: string): ActionRowBuilder<ButtonBuilder>[
   ];
 }
 
+export type PlayerWeeklyStage = 'READY' | 'MATCH_READY' | 'EXP_PENDING' | 'SEASON_BREAK';
+export function playerWeeklyControls(userId: string, stage: PlayerWeeklyStage = 'READY'): ActionRowBuilder<ButtonBuilder>[] {
+  const canAdvance = stage === 'READY' || stage === 'SEASON_BREAK';
+  const canMatch = stage === 'MATCH_READY';
+  const pendingExp = stage === 'EXP_PENDING';
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`frs:${userId}:profile`).setLabel('Player Status').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`frs:${userId}:train`).setLabel('Training').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`frs:${userId}:player-culture`).setLabel('Personal').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`frs:${userId}:club`).setLabel('Club').setStyle(ButtonStyle.Secondary)
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`frs:${userId}:next-week`).setLabel(canAdvance ? 'Next Week' : 'Weekly Update').setStyle(ButtonStyle.Success).setDisabled(!canAdvance),
+      new ButtonBuilder().setCustomId(`frs:${userId}:match`).setLabel(canMatch ? 'Play Match' : 'Match').setStyle(ButtonStyle.Success).setDisabled(!canMatch),
+      new ButtonBuilder().setCustomId(`frs:${userId}:skills`).setLabel(pendingExp ? 'Assign EXP' : 'Detailed Skills').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`frs:${userId}:injury`).setLabel('Recovery').setStyle(ButtonStyle.Secondary)
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`frs:${userId}:daily-reward`).setLabel('Daily Reward').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`frs:${userId}:contract`).setLabel('Contract').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`frs:${userId}:honors`).setLabel('Honors').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`frs:${userId}:player-champions`).setLabel('Champions').setStyle(ButtonStyle.Secondary)
+    ),
+    modeControls(userId)
+  ];
+}
+
 export function gameplayControls(userId: string): ActionRowBuilder<ButtonBuilder>[] {
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -129,7 +157,10 @@ export function pendingExpControls(userId: string): ActionRowBuilder<StringSelec
     new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
       new StringSelectMenuBuilder().setCustomId(`frs:${userId}:pending-exp-select`).setPlaceholder('Pilih skill untuk menerima seluruh pending EXP').addOptions(options)
     ),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`frs:${userId}:menu-home`).setLabel('Game Home').setStyle(ButtonStyle.Secondary))
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`frs:${userId}:menu-player`).setLabel('Weekly Hub').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`frs:${userId}:menu-home`).setLabel('Game Home').setStyle(ButtonStyle.Secondary)
+    )
   ];
 }
 

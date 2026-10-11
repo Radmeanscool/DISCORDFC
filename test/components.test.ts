@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { careerControls, championsControls, coachControls, coachExpControls, coachJobControls, coachStrategyControls, detailedTrainingControls, mainMenuControls, pendingExpControls, playerClubControls, playerCreationControls, playerCultureControls, playerInjuryControls, playerStrategyControls, trainingControls, versusFinalizeControls, versusHomeControls, versusPositionControls, versusSetupControls } from '../src/discord/components.js';
+import { careerControls, championsControls, coachControls, coachExpControls, coachJobControls, coachStrategyControls, detailedTrainingControls, mainMenuControls, pendingExpControls, playerClubControls, playerCreationControls, playerCultureControls, playerInjuryControls, playerStrategyControls, playerWeeklyControls, trainingControls, versusFinalizeControls, versusHomeControls, versusPositionControls, versusSetupControls } from '../src/discord/components.js';
 import { createInitialProfile } from '../src/domain/engine.js';
 import { createVersusClub } from '../src/domain/versus-engine.js';
 
@@ -50,7 +50,20 @@ test('main menu exposes the three gameplay modes and player creation is menu-dri
   assert.ok(coach.includes('frs:user-menu:coach-job'));
   assert.ok(coach.includes('frs:user-menu:coach-champions'));
   const pending = pendingExpControls('user-menu').flatMap((row) => row.toJSON().components.map((component) => component.custom_id));
-  assert.deepEqual(pending, ['frs:user-menu:pending-exp-select', 'frs:user-menu:menu-home']);
+  assert.deepEqual(pending, ['frs:user-menu:pending-exp-select', 'frs:user-menu:menu-player', 'frs:user-menu:menu-home']);
+});
+
+test('Player Weekly Hub changes primary actions by weekly stage', () => {
+  const ready = playerWeeklyControls('weekly-1', 'READY').flatMap((row) => row.toJSON().components);
+  const matchReady = playerWeeklyControls('weekly-1', 'MATCH_READY').flatMap((row) => row.toJSON().components);
+  const pending = playerWeeklyControls('weekly-1', 'EXP_PENDING').flatMap((row) => row.toJSON().components);
+  const find = (components: any[], id: string) => components.find((component) => component.custom_id === `frs:weekly-1:${id}`);
+  assert.equal(find(ready, 'next-week').disabled, false);
+  assert.equal(find(ready, 'match').disabled, true);
+  assert.equal(find(matchReady, 'next-week').disabled, true);
+  assert.equal(find(matchReady, 'match').disabled, false);
+  assert.equal(find(pending, 'skills').label, 'Assign EXP');
+  assert.equal(find(pending, 'match').disabled, true);
 });
 
 test('Player and Coach submenus expose owner-bound button/select actions', () => {
