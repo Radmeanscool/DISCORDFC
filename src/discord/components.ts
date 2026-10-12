@@ -5,6 +5,7 @@ import {
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder
 } from 'discord.js';
+import type { RecoveryClubRecord } from '../config/recovery-data.js';
 import { COACH_ABILITIES, COACH_ABILITY_LABELS, DETAILED_SKILLS, DETAILED_SKILL_LABELS, FORMATIONS, TACTICS, type FormationId, type PlayerWeeklyEvent, type TacticId, type VersusPlayer } from '../domain/types.js';
 
 function modeControls(userId: string): ActionRowBuilder<ButtonBuilder> {
@@ -352,8 +353,33 @@ export function playerClubControls(userId: string): ActionRowBuilder<ButtonBuild
       new ButtonBuilder().setCustomId(`frs:${userId}:player-market`).setLabel('Market').setStyle(ButtonStyle.Secondary)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`frs:${userId}:player-clubs`).setLabel('Change Club').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(`frs:${userId}:menu-player`).setLabel('Player Home').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(`frs:${userId}:menu-home`).setLabel('Game Home').setStyle(ButtonStyle.Secondary)
+    )
+  ];
+}
+
+export function officialClubControls(userId: string, clubs: RecoveryClubRecord[]): ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[] {
+  const selector = new StringSelectMenuBuilder()
+    .setCustomId(`frs:${userId}:player-club-select`)
+    .setPlaceholder('Pilih official club tujuan')
+    .addOptions(clubs.slice(0, 25).map((club) => new StringSelectMenuOptionBuilder().setValue(String(club.id)).setLabel(`${club.nameEn} · League ${club.league}`.slice(0, 100)).setDescription(`Grade ${club.grade} · Prestige ${club.prestige.toFixed(2)}`.slice(0, 100))));
+  return [
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selector),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`frs:${userId}:club`).setLabel('Back to Club Office').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`frs:${userId}:menu-player`).setLabel('Player Home').setStyle(ButtonStyle.Primary)
+    )
+  ];
+}
+
+export function transferConfirmControls(userId: string, clubId: number): ActionRowBuilder<ButtonBuilder>[] {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`frs:${userId}:player-club-confirm:${clubId}`).setLabel('Confirm Transfer').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`frs:${userId}:player-clubs`).setLabel('Choose Another').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`frs:${userId}:club`).setLabel('Cancel').setStyle(ButtonStyle.Danger)
     )
   ];
 }

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { careerControls, championsControls, coachControls, coachExpControls, coachJobControls, coachStrategyControls, detailedTrainingControls, mainMenuControls, pendingExpControls, playerClubControls, playerCreationControls, playerCultureControls, playerInjuryControls, playerStrategyControls, playerWeeklyControls, trainingControls, versusFinalizeControls, versusHomeControls, versusPositionControls, versusSetupControls } from '../src/discord/components.js';
+import { careerControls, championsControls, coachControls, coachExpControls, coachJobControls, coachStrategyControls, detailedTrainingControls, mainMenuControls, officialClubControls, pendingExpControls, playerClubControls, playerCreationControls, playerCultureControls, playerInjuryControls, playerStrategyControls, playerWeeklyControls, trainingControls, transferConfirmControls, versusFinalizeControls, versusHomeControls, versusPositionControls, versusSetupControls } from '../src/discord/components.js';
+import { listOfficialClubs } from '../src/domain/official-club-engine.js';
 import { createInitialProfile } from '../src/domain/engine.js';
 import { createVersusClub } from '../src/domain/versus-engine.js';
 
@@ -86,6 +87,16 @@ test('Player and Coach submenus expose owner-bound button/select actions', () =>
   assert.ok(ids.includes('frs:user-submenu:coach-job-accept-select'));
   assert.ok(ids.includes('frs:user-submenu:player-champions-play'));
   assert.ok(ids.includes('frs:user-submenu:coach-champions-play'));
+});
+
+test('club transfer flow exposes owner-bound club selection and confirmation', () => {
+  const club = listOfficialClubs()[0];
+  const selection = officialClubControls('transfer-user', [club]).flatMap((row) => row.toJSON().components.map((component) => component.custom_id));
+  assert.ok(selection.includes('frs:transfer-user:player-club-select'));
+  assert.ok(selection.every((id) => id?.startsWith('frs:transfer-user:')));
+  const confirmation = transferConfirmControls('transfer-user', club.id).flatMap((row) => row.toJSON().components.map((component) => component.custom_id));
+  assert.ok(confirmation.includes(`frs:transfer-user:player-club-confirm:${club.id}`));
+  assert.equal(playerClubControls('transfer-user').every((row) => row.toJSON().components.length <= 5), true);
 });
 
 test('training component exposes all six abilities', () => {

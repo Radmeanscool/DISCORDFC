@@ -5,13 +5,13 @@ import { buyMarketPlayer, claimDailyReward, formatMoney, refreshMarket, sellClub
 import { claimAchievement, formatAchievements, playChampionsLeague, startChampionsLeague, syncAchievements } from '../domain/competition-engine.js';
 import { assignMatchExp, ensureGameplayState, formatDetailedSkills, formatGameplayStatus, hireTrainer, listTrainerCatalog, playPreparedWeek, preparePlayerWeek, rebirthPlayer, releaseTrainer, resolvePlayerWeeklyEvent, retirePlayer, startCultureStudy, startTrickTraining, trainDetailedSkill, treatInjury } from '../domain/gameplay-engine.js';
 import { formatContract, getContractStatus, renewContract, signContract } from '../domain/contract-engine.js';
-import { joinOfficialClub, listOfficialClubs } from '../domain/official-club-engine.js';
+import { joinOfficialClub, listOfficialClubs, officialClubTransferFee } from '../domain/official-club-engine.js';
 import { acceptJobOffer, advanceCoachRound, assignCoachExp, createCoachCareer, declineJobOffer, formatCoachProfile, generateJobOffer, rebirthCoach, resolveCoachEvent, retireCoach, settleCoachSeason } from '../domain/coach-career-engine.js';
 import { assignVersusMatchmaking, createVersusSeason, formatVersusBattle, getVersusStandings, processVersusRound, queueVersusMatchmaking, settleVersusSeason, submitVersusLineup, syncVersusProfileWithSeason } from '../domain/versus-engine.js';
 import { availableVersusCoin, createVersusMarket, placeVersusBid, settleExpiredVersusMarket } from '../domain/versus-economy.js';
 import { ABILITY_LABELS, COACH_ABILITIES, COACH_ABILITY_LABELS, DETAILED_SKILL_LABELS, DETAILED_SKILLS, FORMATIONS, HONOR_CATEGORY_LABELS, POSITION_LABELS, TACTICS, TRAINER_CATALOG, TRICK_CATALOG, type AbilityId, type CoachAbilityId, type CultureSubject, type DetailedSkillId, type FormationId, type PlayerProfile, type Position, type TacticId, type VersusSeason } from '../domain/types.js';
 import type { BatchPlayerStore, PlayerStore, VersusGroupLockStore } from '../storage/json-store.js';
-import { careerControls, championsControls, coachControls, coachEventControls, coachExpControls, coachJobControls, coachStrategyControls, detailedTrainingControls, mainMenuControls, pendingExpControls, playerClubControls, playerCreationControls, playerCultureControls, playerEventControls, playerInjuryControls, playerStrategyControls, playerWeeklyControls, trainingControls, versusFinalizeControls, versusHomeControls, versusMarketControls, versusPositionControls, versusRankingControls, versusSetupControls, versusSponsorControls } from './components.js';
+import { careerControls, championsControls, coachControls, coachEventControls, coachExpControls, coachJobControls, coachStrategyControls, detailedTrainingControls, mainMenuControls, officialClubControls, pendingExpControls, playerClubControls, playerCreationControls, playerCultureControls, playerEventControls, playerInjuryControls, playerStrategyControls, playerWeeklyControls, trainingControls, transferConfirmControls, versusFinalizeControls, versusHomeControls, versusMarketControls, versusPositionControls, versusRankingControls, versusSetupControls, versusSponsorControls } from './components.js';
 import { log } from '../observability/logger.js';
 import { resolveModeCommand } from './commands.js';
 
@@ -1427,6 +1427,26 @@ export async function handleComponent(interaction: ButtonInteraction | StringSel
       return;
     }
 
+    if (action === 'player-clubs') {
+      const clubs = listOfficialClubs().filter((club) => club.id !== profile.clubState?.officialId).slice(0, 25);
+      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(BRAND_COLOR).setTitle('Transfer · Choose Official Club').setDescription('Pilih klub tujuan untuk melihat preview transfer. Biaya dan perubahan kontrak akan ditampilkan sebelum konfirmasi.').addFields({ name: 'Current club', value: profile.club ?? 'Belum terdaftar', inline: true }, { name: 'Available clubs', value: `${clubs.length}`, inline: true })], components: officialClubControls(interaction.user.id, clubs) });
+      return;
+    }
+    if (action === 'player-club-select' && interaction.isStringSelectMenu()) {
+      const clubId = Number(interaction.values[0]);
+      const club = listOfficialClubs().find((item) => item.id === clubId);
+      if (!club) throw new Error('Official club tujuan tidak ditemukan.');
+      const fee = officialClubTransferFee(clubId);
+      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(BRAND_COLOR).setTitle('Transfer Preview').setDescription(`Pindah dari **${profile.club ?? 'Free Player'}** ke **${club.nameEn}**?`).addFields({ name: 'League / grade', value: `${club.league} · ${club.grade}`, inline: true }, { name: 'Prestige', value: club.prestige.toFixed(2), inline: true }, { name: 'Transfer fee', value: formatMoney(fee), inline: true }, { name: 'Balance after transfer', value: formatMoney(profile.money - fee), inline: true }, { name: 'Important', value: 'Contract lama akan ditutup dan club state akan dibuat ulang setelah transfer.', inline: false })], components: transferConfirmControls(interaction.user.id, clubId) });
+      return;
+    }
+    if (action.startsWith('player-club-confirm:')) {
+      const clubId = Number(action.split(':')[1]);
+      const updated = joinOfficialClub(profile, clubId);
+      await store.save(updated);
+      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(BRAND_COLOR).setTitle(`Transfer Complete · ${updated.club}`).setDescription(`Anda sekarang bermain untuk **${updated.club}**.`).addFields({ name: 'Official club ID', value: `${updated.clubState?.officialId}`, inline: true }, { name: 'Transfer fee', value: formatMoney(officialClubTransferFee(clubId)), inline: true }, { name: 'Balance', value: formatMoney(updated.money), inline: true }, { name: 'Next', value: 'Lihat Squad, League Table, atau mainkan fixture club berikutnya.', inline: false })], components: playerClubControls(interaction.user.id) });
+      return;
+    }
     if (action === 'player-club-match') {
       const result = playClubMatch(profile);
       await store.save(result.profile);

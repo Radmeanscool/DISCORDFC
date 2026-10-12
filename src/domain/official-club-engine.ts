@@ -6,11 +6,17 @@ export function listOfficialClubs(league?: number): typeof RECOVERY_CLUBS {
   return RECOVERY_CLUBS.filter((club) => league === undefined || club.league === league);
 }
 
+export function officialClubTransferFee(officialClubId: number): number {
+  const club = RECOVERY_CLUBS.find((item) => item.id === officialClubId);
+  if (!club) throw new Error('Official club ID tidak ditemukan pada client data.');
+  return Math.max(250, Math.round(club.salaryBase / 100));
+}
+
 export function joinOfficialClub(profileInput: PlayerProfile, officialClubId: number, now = new Date()): PlayerProfile {
   const profile = structuredClone(profileInput);
   const club = RECOVERY_CLUBS.find((item) => item.id === officialClubId);
   if (!club) throw new Error('Official club ID tidak ditemukan pada client data.');
-  const transferFee = Math.max(250, Math.round(club.salaryBase / 100));
+  const transferFee = officialClubTransferFee(officialClubId);
   if (profile.clubState && profile.clubState.officialId === club.id) throw new Error('Pemain sudah berada di klub tersebut.');
   if (profile.money < transferFee) throw new Error(`Money tidak cukup. Biaya perpindahan: ${transferFee}.`);
   profile.money -= transferFee;
