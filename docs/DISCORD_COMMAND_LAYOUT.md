@@ -23,7 +23,7 @@ Use Versus buttons from Game Home for system-managed multiplayer. `/versus` rema
 
 ## Help and migration
 
-`/help` explains the mode-first workflow. The default guild registry contains three root commands: `/play`, `/help`, and `/admin`. `/play` is the only gameplay entry point; `/player`, `/coach`, and `/versus` remain in source as compatibility handlers but are not registered unless `REGISTER_FALLBACK_COMMANDS=true`. This keeps Discord's command menu focused while preserving a recovery path for operators and testing.
+Help is opened from the Game Home buttons. The default guild registry contains exactly one root command: `/play`. `/player`, `/coach`, `/versus`, `/help`, and `/admin` remain in source as compatibility or operator handlers but are not registered unless `REGISTER_FALLBACK_COMMANDS=true`. This keeps the Discord command picker limited to one gameplay entry point.
 
 All mutating roots are included in the mutation rate-limit bucket. Every chat input command is acknowledged before rate limiting and per-user queue work. Component interactions are also acknowledged centrally; `handleComponent` only defers when an interaction has not already been acknowledged. The handler then resolves the root/subcommand path to the existing internal command name and runs the original isolated domain logic.
 
@@ -31,4 +31,4 @@ All mutating roots are included in the mutation rate-limit bucket. Every chat in
 
 The normal player journey is `/play` → Game Home → mode menu → contextual action panel. Player Home now exposes weekly update, match, training, daily reward, injury/recovery, honors, contract, Champions, and Club Office navigation. Club Office exposes match, league table, squad, formation/tactic, and market panels. Coach Home exposes round, management decision, EXP allocation, strategy, job offers, and Champions panels. Versus Home already exposes assignment, Next Battle, lineup builder, results, standings, market, rewards, schedule, rankings, and sponsor surfaces.
 
-Every new component ID remains owner-bound. The component adapter acknowledges the interaction centrally and returns the user to the appropriate mode menu after an action. Slash subcommands remain as optional fallback/operator surfaces because Discord cannot expose every possible state transition as a persistent native button, but normal gameplay does not require typing each operation. Registration uses `REGISTER_FALLBACK_COMMANDS=false` by default.
+Every new component ID remains owner-bound. The component adapter acknowledges the interaction centrally and returns the user to the appropriate mode menu after an action. Slash subcommands remain as optional fallback/operator surfaces because Discord cannot expose every possible state transition as a persistent native button, but normal gameplay does not require typing each operation. Registration uses `REGISTER_FALLBACK_COMMANDS=false` by default and registers only `/play`.

@@ -88,8 +88,8 @@ const help = new SlashCommandBuilder().setName('help').setDescription('Lihat pan
 const admin = new SlashCommandBuilder().setName('admin').setDescription('Admin maintenance command').setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild.toString()).addStringOption((option) => option.setName('action').setDescription('Aksi admin').setRequired(true).addChoices({ name: 'Stats', value: 'stats' }, { name: 'Refresh all markets', value: 'refresh-markets' }));
 
 export const commandDefinitions = [play, player, coach, versus, help, admin].map((command) => command.toJSON());
-/** Default public surface: users enter through /play and continue with buttons/selects. */
-export const menuFirstCommandDefinitions = [play, help, admin].map((command) => command.toJSON());
+/** Default public surface: one gameplay entry point; all navigation uses buttons/selects. */
+export const menuFirstCommandDefinitions = [play].map((command) => command.toJSON());
 
 export const modeCommandMap: Record<string, string> = {
   'player.career.start': 'start', 'player.career.profile': 'profile', 'player.career.match': 'match', 'player.career.next-week': 'next-week', 'player.career.league': 'league', 'player.career.injury': 'injury', 'player.career.retire': 'retire', 'player.career.rebirth': 'rebirth', 'player.career.daily': 'daily', 'player.career.event': 'player-event-disabled', 'player.career.contract': 'contract', 'player.career.champions': 'champions',

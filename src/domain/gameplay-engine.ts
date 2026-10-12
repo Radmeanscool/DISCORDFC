@@ -542,7 +542,8 @@ export function playPreparedWeek(profileInput: PlayerProfile, now = new Date(), 
 /** Compatibility path retained for existing commands and stress tests. */
 export function advanceWeek(profileInput: PlayerProfile, now = new Date(), rng: RandomSource = new MathRandomSource()): WeekResult {
   const prepared = preparePlayerWeek(profileInput, now);
-  const played = playPreparedWeek(prepared.profile, now, rng);
+  const readyProfile = prepared.stage === 'EVENT_PENDING' && prepared.event ? resolvePlayerWeeklyEvent(prepared.profile, prepared.event.choices[0].id, now).profile : prepared.profile;
+  const played = playPreparedWeek(readyProfile, now, rng);
   return { ...played, narrative: [...prepared.narrative, ...played.narrative] };
 }
 

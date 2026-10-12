@@ -2,6 +2,8 @@
 
 Proyek ini mengembangkan Football Rising Star menjadi pengalaman game berbasis Discord dengan tiga mode terpisah: Player Mode, Coach Mode, dan Versus Mode. Player membangun karier solo; Coach mengelola club melalui season home-away; Versus menjalankan liga multi-club asynchronous dengan group, battle, standings, dan rewards.
 
+> **UX utama:** registry Discord default hanya mendaftarkan **`/play`**. Setelah masuk Game Home, seluruh gameplay dilanjutkan melalui Buttons dan Select Menus. Daftar command detail di bawah adalah compatibility/operator fallback dan hanya didaftarkan jika `REGISTER_FALLBACK_COMMANDS=true`.
+
 > Paket recovery yang tersedia adalah build Unity IL2CPP, bukan source C# dan backend asli. Karena itu, proyek ini membangun ulang loop game dan kontrak domain yang terlihat dari recovery. Formula yang belum dapat dibaca atau divalidasi dari binary diberi konfigurasi terpusat dan ditandai sebagai `RECOVERY_INFERRED`, bukan diklaim identik 1:1.
 
 ## Fitur yang tersedia
@@ -17,7 +19,7 @@ Proyek ini mengembangkan Football Rising Star menjadi pengalaman game berbasis D
 | Progression | Daily reward streak, achievements, MVP, season scoring; unsupported Player daily-event choices are disabled |
 | Production | PostgreSQL store dengan optimistic concurrency, atomic multi-profile batch save, advisory group lock untuk Versus, schema migration, JSON-to-PostgreSQL import, Docker image, Compose stack, rate limiter, per-user command queue, structured logging, admin stats |
 
-## Slash commands
+## Slash command fallback / operator
 
 | Command | Fungsi |
 | --- | --- |

@@ -41,8 +41,9 @@ test('Discord registry groups Player, Coach, and Versus modes without technical 
   assert.equal(resolveModeCommand('versus', 'bid'), 'versus-bid');
 });
 
-test('menu-first registration exposes only entry, help, and admin commands', () => {
-  assert.deepEqual(menuFirstCommandDefinitions.map((command) => command.name), ['play', 'help', 'admin']);
+test('menu-first registration exposes only the play entry command', () => {
+  assert.deepEqual(menuFirstCommandDefinitions.map((command) => command.name), ['play']);
+  assert.equal(menuFirstCommandDefinitions.length, 1);
   assert.equal(menuFirstCommandDefinitions.some((command) => command.name === 'player'), false);
   assert.equal(menuFirstCommandDefinitions.some((command) => command.name === 'coach'), false);
   assert.equal(menuFirstCommandDefinitions.some((command) => command.name === 'versus'), false);
