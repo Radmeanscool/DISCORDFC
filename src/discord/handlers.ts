@@ -3,7 +3,7 @@ import { createInitialProfile, formatAbility, getRating, playMatch, recoverPlaye
 import { ensureClubState, finishSeason, formatClubStanding, getClubRating, getNextClubFixture, playClubMatch, setClubFormation, setClubTactic } from '../domain/club-engine.js';
 import { buyMarketPlayer, claimDailyReward, formatMoney, refreshMarket, sellClubPlayer } from '../domain/progression-engine.js';
 import { claimAchievement, formatAchievements, playChampionsLeague, startChampionsLeague, syncAchievements } from '../domain/competition-engine.js';
-import { assignMatchExp, ensureGameplayState, formatDetailedSkills, formatGameplayStatus, hireTrainer, listTrainerCatalog, playPreparedWeek, preparePlayerWeek, rebirthPlayer, releaseTrainer, retirePlayer, startCultureStudy, startTrickTraining, trainDetailedSkill, treatInjury } from '../domain/gameplay-engine.js';
+import { assignMatchExp, ensureGameplayState, formatDetailedSkills, formatGameplayStatus, hireTrainer, listTrainerCatalog, playPreparedWeek, preparePlayerWeek, rebirthPlayer, releaseTrainer, resolvePlayerWeeklyEvent, retirePlayer, startCultureStudy, startTrickTraining, trainDetailedSkill, treatInjury } from '../domain/gameplay-engine.js';
 import { formatContract, getContractStatus, renewContract, signContract } from '../domain/contract-engine.js';
 import { joinOfficialClub, listOfficialClubs } from '../domain/official-club-engine.js';
 import { acceptJobOffer, advanceCoachRound, assignCoachExp, createCoachCareer, declineJobOffer, formatCoachProfile, generateJobOffer, rebirthCoach, resolveCoachEvent, retireCoach, settleCoachSeason } from '../domain/coach-career-engine.js';
@@ -11,7 +11,7 @@ import { assignVersusMatchmaking, createVersusSeason, formatVersusBattle, getVer
 import { availableVersusCoin, createVersusMarket, placeVersusBid, settleExpiredVersusMarket } from '../domain/versus-economy.js';
 import { ABILITY_LABELS, COACH_ABILITIES, COACH_ABILITY_LABELS, DETAILED_SKILL_LABELS, DETAILED_SKILLS, FORMATIONS, HONOR_CATEGORY_LABELS, POSITION_LABELS, TACTICS, TRAINER_CATALOG, TRICK_CATALOG, type AbilityId, type CoachAbilityId, type CultureSubject, type DetailedSkillId, type FormationId, type PlayerProfile, type Position, type TacticId, type VersusSeason } from '../domain/types.js';
 import type { BatchPlayerStore, PlayerStore, VersusGroupLockStore } from '../storage/json-store.js';
-import { careerControls, championsControls, coachControls, coachEventControls, coachExpControls, coachJobControls, coachStrategyControls, detailedTrainingControls, mainMenuControls, pendingExpControls, playerClubControls, playerCreationControls, playerCultureControls, playerInjuryControls, playerStrategyControls, playerWeeklyControls, trainingControls, versusFinalizeControls, versusHomeControls, versusMarketControls, versusPositionControls, versusRankingControls, versusSetupControls, versusSponsorControls } from './components.js';
+import { careerControls, championsControls, coachControls, coachEventControls, coachExpControls, coachJobControls, coachStrategyControls, detailedTrainingControls, mainMenuControls, pendingExpControls, playerClubControls, playerCreationControls, playerCultureControls, playerEventControls, playerInjuryControls, playerStrategyControls, playerWeeklyControls, trainingControls, versusFinalizeControls, versusHomeControls, versusMarketControls, versusPositionControls, versusRankingControls, versusSetupControls, versusSponsorControls } from './components.js';
 import { log } from '../observability/logger.js';
 import { resolveModeCommand } from './commands.js';
 
@@ -65,9 +65,10 @@ function playerWeeklyEmbed(profileInput: PlayerProfile): EmbedBuilder {
     READY: 'Siap menyiapkan minggu berikutnya',
     MATCH_READY: 'Weekly update selesai · pertandingan siap dimainkan',
     EXP_PENDING: 'EXP pertandingan menunggu alokasi',
+    EVENT_PENDING: 'Event mingguan menunggu keputusan',
     SEASON_BREAK: 'Season break · lihat hasil penghargaan'
   };
-  const nextAction = stage === 'READY' || stage === 'SEASON_BREAK' ? 'Tekan **Next Week** untuk memproses recovery, training, dan weekly update.' : stage === 'MATCH_READY' ? 'Tekan **Play Match** untuk melihat simulasi pertandingan.' : 'Pilih **Assign EXP** pada panel hasil pertandingan sebelum memulai minggu berikutnya.';
+  const nextAction = stage === 'READY' || stage === 'SEASON_BREAK' ? 'Tekan **Next Week** untuk memproses recovery, training, dan weekly update.' : stage === 'MATCH_READY' ? 'Tekan **Play Match** untuk melihat simulasi pertandingan.' : stage === 'EVENT_PENDING' ? 'Tekan **Weekly Event Decision** untuk memilih respons sebelum pertandingan.' : 'Pilih **Assign EXP** pada panel hasil pertandingan sebelum memulai minggu berikutnya.';
   return profileEmbed(profile)
     .setTitle(`${profile.displayName} · Player Weekly Hub`)
     .setDescription(`Week **${profile.seasonWeek ?? 1}** · Stage **${stageLabel[stage]}**\n${nextAction}`)
@@ -974,7 +975,7 @@ export async function handleCommand(interaction: ChatInputCommandInteraction, st
     }
 
     if (command === 'player-event-disabled') {
-      await interaction.editReply('Player Event harian sudah dinonaktifkan. Alur Player menggunakan weekly update, match, EXP allocation, training, career, club, dan honors; incident hanya boleh muncul dari timeline yang terverifikasi.');
+      await interaction.editReply('Player Event harian tidak digunakan. Event Player sekarang muncul secara acak pada **Weekly Update** dan diselesaikan melalui tombol **Weekly Event Decision**.');
       return;
     }
 
@@ -1605,10 +1606,30 @@ export async function handleComponent(interaction: ButtonInteraction | StringSel
       return;
     }
 
+    if (action === 'player-event') {
+      const enriched = ensureGameplayState(profile);
+      const event = enriched.weeklyEvent;
+      if (enriched.weekStage !== 'EVENT_PENDING' || !event || event.resolved) throw new Error('Tidak ada event mingguan yang menunggu keputusan.');
+      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(BRAND_COLOR).setTitle(`Weekly Event · ${event.title}`).setDescription(event.description).addFields({ name: 'Week', value: `${event.week}`, inline: true }, { name: 'Type', value: event.type, inline: true })], components: playerEventControls(interaction.user.id, event) });
+      return;
+    }
+    if (action === 'player-event-select' && interaction.isStringSelectMenu()) {
+      const result = resolvePlayerWeeklyEvent(profile, interaction.values[0]);
+      await store.save(result.profile);
+      const effects = [
+        result.choice.moneyDelta ? `Money ${result.choice.moneyDelta > 0 ? '+' : ''}${result.choice.moneyDelta}` : '',
+        result.choice.expDelta ? `EXP +${result.choice.expDelta}` : '',
+        result.choice.charmDelta ? `Charm ${result.choice.charmDelta > 0 ? '+' : ''}${result.choice.charmDelta}` : '',
+        result.choice.injuryWeeks ? `Cedera ${result.choice.injuryWeeks} minggu` : '',
+        result.choice.sponsor ? `Sponsor ${result.choice.sponsor.brand} aktif` : ''
+      ].filter(Boolean).join(' · ') || 'Tidak ada perubahan statistik.';
+      await interaction.editReply({ embeds: [playerWeeklyEmbed(result.profile).setTitle(`Event Resolved · ${result.event.title}`).setDescription(`Pilihan: **${result.choice.label}**\n${result.choice.description}\n\n${effects}\n\nPertandingan berikutnya sudah siap.`)], components: playerWeeklyControls(interaction.user.id, result.profile.weekStage ?? 'MATCH_READY') });
+      return;
+    }
     if (action === 'next-week') {
       const result = preparePlayerWeek(profile);
       await store.save(result.profile);
-      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(BRAND_COLOR).setTitle(`Weekly Update · Week ${result.week}`).setDescription(result.narrative.join('\n')).addFields({ name: 'Stage', value: result.stage, inline: true }, { name: 'Condition', value: `HP ${result.profile.hp}/${result.profile.maxHp}\nEnergy ${result.profile.energy}/${result.profile.maxEnergy}`, inline: true }, { name: 'Next step', value: 'Tekan Play Match untuk melanjutkan.', inline: false })], components: playerWeeklyControls(interaction.user.id, result.stage) });
+      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(BRAND_COLOR).setTitle(`Weekly Update · Week ${result.week}`).setDescription(result.narrative.join('\n')).addFields({ name: 'Stage', value: result.stage, inline: true }, { name: 'Condition', value: `HP ${result.profile.hp}/${result.profile.maxHp}\nEnergy ${result.profile.energy}/${result.profile.maxEnergy}`, inline: true }, { name: 'Next step', value: result.stage === 'EVENT_PENDING' ? 'Tekan Weekly Event Decision untuk memilih respons.' : 'Tekan Play Match untuk melanjutkan.', inline: false })], components: playerWeeklyControls(interaction.user.id, result.stage) });
       return;
     }
 

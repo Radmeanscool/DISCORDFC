@@ -17,7 +17,11 @@ import {
   type GameplayActionResult,
   type HonorRecord,
   type InjurySeverity,
+  type PlayerEventChoice,
+  type PlayerEventType,
   type PlayerProfile,
+  type PlayerSponsorContract,
+  type PlayerWeeklyEvent,
   type RetirementState,
   type TrainerState,
   type TreatmentResult,
@@ -357,12 +361,113 @@ function maybeRetire(profile: PlayerProfile, now: Date): boolean {
   return true;
 }
 
-export function preparePlayerWeek(profileInput: PlayerProfile, now = new Date()): WeekPreparationResult {
+function sponsorTier(rng: RandomSource): PlayerSponsorContract {
+  const offers: Array<Omit<PlayerSponsorContract, 'signedAtWeek'>> = [
+    { id: 'local-boots', brand: 'Kicks Local', tier: 'LOCAL', weeklyReward: 90, weeksRemaining: GAME_BALANCE.weekly.sponsorContractWeeks },
+    { id: 'regional-drink', brand: 'Pulse Drink', tier: 'REGIONAL', weeklyReward: 160, weeksRemaining: GAME_BALANCE.weekly.sponsorContractWeeks },
+    { id: 'global-tech', brand: 'Vertex Sports', tier: 'GLOBAL', weeklyReward: 280, weeksRemaining: GAME_BALANCE.weekly.sponsorContractWeeks }
+  ];
+  return { ...offers[Math.floor(rng.next() * offers.length)], signedAtWeek: 0 };
+}
+
+function createPlayerWeeklyEvent(profile: PlayerProfile, now: Date, rng: RandomSource): PlayerWeeklyEvent | undefined {
+  if (rng.next() >= GAME_BALANCE.weekly.playerEventChance) return undefined;
+  const eventId = `player-week-${currentWeek(profile)}-${Math.floor(rng.next() * 1_000_000)}`;
+  const typeRoll = rng.next();
+  let type: PlayerEventType;
+  let title: string;
+  let description: string;
+  let choices: PlayerEventChoice[];
+  if (!profile.injury && typeRoll < GAME_BALANCE.weekly.medicalEventChance) {
+    type = 'MEDICAL_INCIDENT';
+    title = 'Knock dalam latihan';
+    description = 'Tim medis menemukan benturan ringan setelah sesi latihan. Kamu harus memilih cara menangani kondisi ini sebelum pertandingan.';
+    choices = [
+      { id: 'rest', label: 'Istirahat dan pulihkan diri', description: 'Lewatkan risiko dengan mengambil waktu recovery.', energyDelta: 12, hpDelta: 8 },
+      { id: 'push-through', label: 'Tetap berlatih', description: 'Pertahankan momentum, tetapi ada risiko cedera.', energyDelta: -10, injuryWeeks: 2, expDelta: 22 }
+    ];
+  } else if (typeRoll < 0.62) {
+    type = 'INTERVIEW';
+    title = 'Wawancara setelah latihan';
+    description = 'Media klub meminta komentar tentang performa dan target musim ini. Jawabanmu memengaruhi reputasi dan perkembangan karier.';
+    choices = [
+      { id: 'honest', label: 'Jawab jujur dan tenang', description: 'Reputasi naik secara konsisten.', charmDelta: 3, expDelta: 16 },
+      { id: 'bold', label: 'Buat pernyataan berani', description: 'Mendapat perhatian besar dan bonus kecil.', charmDelta: 5, moneyDelta: 120 },
+      { id: 'humble', label: 'Puji kerja tim', description: 'Menjaga hubungan dengan ruang ganti.', charmDelta: 2, energyDelta: 5, expDelta: 10 }
+    ];
+  } else if (!profile.sponsor) {
+    type = 'SPONSOR_OFFER';
+    const offer = sponsorTier(rng);
+    title = `Tawaran sponsor · ${offer.brand}`;
+    description = `Brand ${offer.brand} menawarkan kontrak ${offer.tier.toLowerCase()} selama ${offer.weeksRemaining} minggu dengan pembayaran mingguan.`;
+    choices = [
+      { id: 'sign', label: `Tanda tangani ${offer.brand}`, description: `Terima ${offer.weeklyReward} money setiap weekly update.`, sponsor: offer },
+      { id: 'decline', label: 'Tolak dengan sopan', description: 'Menjaga kebebasan karier tanpa kontrak sponsor.', charmDelta: 1 }
+    ];
+  } else {
+    type = 'LIFESTYLE';
+    title = 'Undangan acara klub';
+    description = 'Setelah latihan, kamu mendapat undangan acara yang bisa membantu reputasi atau kondisi fisik.';
+    choices = [
+      { id: 'attend', label: 'Hadiri acara', description: 'Bangun reputasi dan relasi baru.', charmDelta: 4, energyDelta: -8, moneyDelta: 80 },
+      { id: 'recover', label: 'Pulang dan recovery', description: 'Prioritaskan tubuh untuk pertandingan.', hpDelta: 10, energyDelta: 8 }
+    ];
+  }
+  return { id: eventId, type, title, description, choices, resolved: false, createdAt: iso(now), week: currentWeek(profile) };
+}
+
+function settleSponsor(profile: PlayerProfile): string | undefined {
+  const sponsor = profile.sponsor;
+  if (!sponsor) return undefined;
+  profile.money += sponsor.weeklyReward;
+  sponsor.weeksRemaining -= 1;
+  if (sponsor.weeksRemaining <= 0) {
+    profile.sponsorHistory ??= [];
+    profile.sponsorHistory.push({ ...sponsor, weeksRemaining: 0 });
+    profile.sponsor = undefined;
+    return `Sponsor ${sponsor.brand} membayar ${sponsor.weeklyReward} money. Kontrak selesai.`;
+  }
+  return `Sponsor ${sponsor.brand} membayar ${sponsor.weeklyReward} money (${sponsor.weeksRemaining} minggu tersisa).`;
+}
+
+export function resolvePlayerWeeklyEvent(profileInput: PlayerProfile, choiceId: string, now = new Date()): { profile: PlayerProfile; event: PlayerWeeklyEvent; choice: PlayerEventChoice } {
+  const profile = ensureGameplayState(profileInput, now);
+  requireActive(profile);
+  if (profile.weekStage !== 'EVENT_PENDING' || !profile.weeklyEvent || profile.weeklyEvent.resolved) throw new Error('Tidak ada event mingguan yang menunggu keputusan.');
+  const event = profile.weeklyEvent;
+  const choice = event.choices.find((item) => item.id === choiceId);
+  if (!choice) throw new Error('Pilihan event tidak valid.');
+  profile.money = Math.max(0, profile.money + (choice.moneyDelta ?? 0));
+  profile.totalExp += choice.expDelta ?? 0;
+  profile.charm = Math.max(0, (profile.charm ?? 0) + (choice.charmDelta ?? 0));
+  profile.energy = Math.min(profile.maxEnergy, Math.max(0, profile.energy + (choice.energyDelta ?? 0)));
+  profile.hp = Math.min(profile.maxHp, Math.max(0, profile.hp + (choice.hpDelta ?? 0)));
+  if (choice.sponsor) {
+    if (profile.sponsor) {
+      profile.sponsorHistory ??= [];
+      profile.sponsorHistory.push({ ...profile.sponsor, weeksRemaining: profile.sponsor.weeksRemaining });
+    }
+    profile.sponsor = { ...choice.sponsor, signedAtWeek: currentWeek(profile) };
+  }
+  if (choice.injuryWeeks && !profile.injury) {
+    profile.injury = { severity: injurySeverity(choice.injuryWeeks), weeksRemaining: choice.injuryWeeks, source: 'EVENT', treatmentUsed: false, diagnosedAt: iso(now) };
+    profile.career.injuries += 1;
+  }
+  event.resolved = true;
+  event.selectedChoiceId = choice.id;
+  profile.weekStage = 'MATCH_READY';
+  syncMacroStats(profile);
+  touch(profile, now);
+  return { profile, event, choice };
+}
+
+export function preparePlayerWeek(profileInput: PlayerProfile, now = new Date(), rng: RandomSource = new MathRandomSource()): WeekPreparationResult {
   const profile = ensureGameplayState(profileInput, now);
   requireActive(profile);
   if ((profile.unassignedMatchExp ?? 0) > 0) throw new Error(`Assign EXP sebelum memulai week berikutnya. Sisa EXP: ${profile.unassignedMatchExp}.`);
   if (profile.weekStage === 'MATCH_READY') throw new Error('Weekly update sudah selesai. Lanjutkan ke Match Ready terlebih dahulu.');
   if (profile.weekStage === 'EXP_PENDING') throw new Error('Assign EXP hasil pertandingan terlebih dahulu.');
+  if (profile.weekStage === 'EVENT_PENDING') throw new Error('Selesaikan event mingguan terlebih dahulu.');
   const week = currentWeek(profile);
   const narrative: string[] = [`Weekly Update · Week ${week} dimulai untuk ${profile.displayName}.`];
   if (profile.weekStage === 'SEASON_BREAK') narrative.push('Season break selesai; career memasuki weekly cycle berikutnya.');
@@ -371,10 +476,19 @@ export function preparePlayerWeek(profileInput: PlayerProfile, now = new Date())
   if (trainerMessage) narrative.push(trainerMessage);
   const injuryMessage = settleInjury(profile);
   if (injuryMessage) narrative.push(injuryMessage);
+  const sponsorMessage = settleSponsor(profile);
+  if (sponsorMessage) narrative.push(sponsorMessage);
   syncMacroStats(profile);
-  profile.weekStage = 'MATCH_READY';
+  const event = createPlayerWeeklyEvent(profile, now, rng);
+  if (event) {
+    profile.weeklyEvent = event;
+    profile.weekStage = 'EVENT_PENDING';
+    narrative.push(`Event mingguan: ${event.title}. Pilih respons sebelum pertandingan.`);
+  } else {
+    profile.weekStage = 'MATCH_READY';
+  }
   touch(profile, now);
-  return { profile, week, narrative, stage: profile.weekStage };
+  return { profile, week, narrative, stage: profile.weekStage, event };
 }
 
 export function playPreparedWeek(profileInput: PlayerProfile, now = new Date(), rng: RandomSource = new MathRandomSource()): WeekResult {

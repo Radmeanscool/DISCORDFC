@@ -7,7 +7,8 @@ export type FormationId = '4-4-2' | '4-3-3' | '3-5-2' | '5-3-2' | '4-1-3-2' | '3
 export type ListingStatus = 'OPEN' | 'SOLD' | 'CANCELLED';
 export type CareerMode = 'PLAYER' | 'COACH';
 export type CareerStatus = 'ACTIVE' | 'RETIRED';
-export type PlayerWeekStage = 'READY' | 'MATCH_READY' | 'EXP_PENDING' | 'SEASON_BREAK';
+export type PlayerWeekStage = 'READY' | 'MATCH_READY' | 'EXP_PENDING' | 'EVENT_PENDING' | 'SEASON_BREAK';
+export type PlayerEventType = 'INTERVIEW' | 'SPONSOR_OFFER' | 'MEDICAL_INCIDENT' | 'LIFESTYLE';
 export type CoachStatus = 'EMPLOYED' | 'UNEMPLOYED' | 'RETIRED';
 export type CoachAbilityId = 'formation' | 'tactics' | 'stateAdjustment' | 'trainingLevel' | 'lockerRoom' | 'charisma';
 export type CoachTargetType = 'PROMOTION' | 'CHAMPIONSHIP' | 'AVOID_RELEGATION' | 'QCL';
@@ -66,7 +67,37 @@ export interface CultureStudyState {
   skillReward: DetailedSkillId;
   skillExpReward: number;
 }
-
+export interface PlayerSponsorContract {
+  id: string;
+  brand: string;
+  tier: 'LOCAL' | 'REGIONAL' | 'GLOBAL';
+  weeklyReward: number;
+  weeksRemaining: number;
+  signedAtWeek: number;
+}
+export interface PlayerEventChoice {
+  id: string;
+  label: string;
+  description: string;
+  moneyDelta?: number;
+  expDelta?: number;
+  charmDelta?: number;
+  energyDelta?: number;
+  hpDelta?: number;
+  injuryWeeks?: number;
+  sponsor?: PlayerSponsorContract;
+}
+export interface PlayerWeeklyEvent {
+  id: string;
+  type: PlayerEventType;
+  title: string;
+  description: string;
+  choices: PlayerEventChoice[];
+  resolved: boolean;
+  createdAt: string;
+  week: number;
+  selectedChoiceId?: string;
+}
 export interface TrickDefinition {
   id: string;
   name: string;
@@ -641,6 +672,9 @@ export interface PlayerProfile {
   activeTraining?: ActiveTraining;
   trainer?: TrainerState;
   cultureStudy?: CultureStudyState;
+  weeklyEvent?: PlayerWeeklyEvent;
+  sponsor?: PlayerSponsorContract;
+  sponsorHistory?: PlayerSponsorContract[];
   charm?: number;
   unlockedTricks?: string[];
   honors?: HonorRecord[];
@@ -699,6 +733,7 @@ export interface WeekPreparationResult {
   week: number;
   narrative: string[];
   stage: PlayerWeekStage;
+  event?: PlayerWeeklyEvent;
 }
 
 export interface WeekResult {

@@ -5,7 +5,7 @@ import {
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder
 } from 'discord.js';
-import { COACH_ABILITIES, COACH_ABILITY_LABELS, DETAILED_SKILLS, DETAILED_SKILL_LABELS, FORMATIONS, TACTICS, type FormationId, type TacticId, type VersusPlayer } from '../domain/types.js';
+import { COACH_ABILITIES, COACH_ABILITY_LABELS, DETAILED_SKILLS, DETAILED_SKILL_LABELS, FORMATIONS, TACTICS, type FormationId, type PlayerWeeklyEvent, type TacticId, type VersusPlayer } from '../domain/types.js';
 
 function modeControls(userId: string): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -97,7 +97,7 @@ export function careerControls(userId: string): ActionRowBuilder<ButtonBuilder>[
   ];
 }
 
-export type PlayerWeeklyStage = 'READY' | 'MATCH_READY' | 'EXP_PENDING' | 'SEASON_BREAK';
+export type PlayerWeeklyStage = 'READY' | 'MATCH_READY' | 'EXP_PENDING' | 'EVENT_PENDING' | 'SEASON_BREAK';
 export function playerWeeklyControls(userId: string, stage: PlayerWeeklyStage = 'READY'): ActionRowBuilder<ButtonBuilder>[] {
   const canAdvance = stage === 'READY' || stage === 'SEASON_BREAK';
   const canMatch = stage === 'MATCH_READY';
@@ -116,12 +116,27 @@ export function playerWeeklyControls(userId: string, stage: PlayerWeeklyStage = 
       new ButtonBuilder().setCustomId(`frs:${userId}:injury`).setLabel('Recovery').setStyle(ButtonStyle.Secondary)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
+      ...(stage === 'EVENT_PENDING' ? [new ButtonBuilder().setCustomId(`frs:${userId}:player-event`).setLabel('Weekly Event Decision').setStyle(ButtonStyle.Primary)] : []),
       new ButtonBuilder().setCustomId(`frs:${userId}:daily-reward`).setLabel('Daily Reward').setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(`frs:${userId}:contract`).setLabel('Contract').setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(`frs:${userId}:honors`).setLabel('Honors').setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(`frs:${userId}:player-champions`).setLabel('Champions').setStyle(ButtonStyle.Secondary)
     ),
     modeControls(userId)
+  ];
+}
+
+export function playerEventControls(userId: string, event: PlayerWeeklyEvent): ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[] {
+  const selector = new StringSelectMenuBuilder()
+    .setCustomId(`frs:${userId}:player-event-select`)
+    .setPlaceholder('Pilih respons untuk event mingguan')
+    .addOptions(event.choices.map((choice) => new StringSelectMenuOptionBuilder().setValue(choice.id).setLabel(choice.label).setDescription(choice.description.slice(0, 100))));
+  return [
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selector),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`frs:${userId}:menu-player`).setLabel('Weekly Hub').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`frs:${userId}:menu-home`).setLabel('Game Home').setStyle(ButtonStyle.Secondary)
+    )
   ];
 }
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { advanceWeek, assignMatchExp, ensureGameplayState, hireTrainer, playPreparedWeek, preparePlayerWeek, rebirthPlayer, retirePlayer, startTrickTraining, trainDetailedSkill, treatInjury } from '../src/domain/gameplay-engine.js';
+import { advanceWeek, assignMatchExp, ensureGameplayState, hireTrainer, playPreparedWeek, preparePlayerWeek, rebirthPlayer, resolvePlayerWeeklyEvent, retirePlayer, startTrickTraining, trainDetailedSkill, treatInjury } from '../src/domain/gameplay-engine.js';
 import { createInitialProfile, playMatch, SeededRandom } from '../src/domain/engine.js';
 
 test('new player starts at age 15 with twelve detailed skills', () => {
@@ -49,7 +49,7 @@ test('observed bicycle kick trick unlocks after prerequisites', () => {
 
 test('Player weekly loop exposes update, match, and EXP stages', () => {
   const profile = createInitialProfile('gameplay-stage', 'Stage Star', 'FW');
-  const prepared = preparePlayerWeek(profile, new Date('2026-01-01T00:00:00.000Z'));
+  const prepared = preparePlayerWeek(profile, new Date('2026-01-01T00:00:00.000Z'), new SeededRandom(5120));
   assert.equal(prepared.stage, 'MATCH_READY');
   assert.equal(prepared.profile.weekStage, 'MATCH_READY');
   assert.throws(() => preparePlayerWeek(prepared.profile), /Weekly update sudah selesai/);
@@ -72,6 +72,31 @@ test('trainer, weekly progression, and annual award state are persisted', () => 
   assert.equal(week.profile.age, 16);
   assert.equal(week.award?.resolved, true);
   assert.equal((week.profile.unassignedMatchExp ?? 0) > 0, true);
+});
+
+test('weekly player event blocks match until a button choice is resolved', () => {
+  const profile = createInitialProfile('weekly-event-1', 'Event Star', 'FW');
+  const prepared = preparePlayerWeek(profile, new Date('2026-01-01T00:00:00.000Z'), { values: [0, 0, 0], next() { return this.values.shift() ?? 0; } });
+  assert.equal(prepared.stage, 'EVENT_PENDING');
+  assert.equal(prepared.event?.type, 'MEDICAL_INCIDENT');
+  assert.throws(() => playPreparedWeek(prepared.profile, new Date('2026-01-01T00:00:00.000Z'), new SeededRandom(2)), /Weekly Update terlebih dahulu/);
+  const resolved = resolvePlayerWeeklyEvent(prepared.profile, 'rest', new Date('2026-01-01T00:00:00.000Z'));
+  assert.equal(resolved.profile.weekStage, 'MATCH_READY');
+  assert.equal(resolved.profile.weeklyEvent?.resolved, true);
+  assert.equal(resolved.profile.injury, undefined);
+});
+
+test('sponsor event signs a persistent weekly contract and pays on next update', () => {
+  const profile = createInitialProfile('weekly-sponsor-1', 'Sponsor Star', 'MF');
+  const rng = { values: [0, 0.8, 0.8, 0.8], next() { return this.values.shift() ?? 0.8; } };
+  const prepared = preparePlayerWeek(profile, new Date('2026-01-01T00:00:00.000Z'), rng);
+  assert.equal(prepared.event?.type, 'SPONSOR_OFFER');
+  const signed = resolvePlayerWeeklyEvent(prepared.profile, 'sign');
+  assert.ok(signed.profile.sponsor);
+  const before = signed.profile.money;
+  signed.profile.weekStage = 'READY';
+  const next = preparePlayerWeek(signed.profile, new Date('2026-01-08T00:00:00.000Z'), { next: () => 0.99 });
+  assert.equal(next.profile.money, before + signed.profile.sponsor!.weeklyReward);
 });
 
 test('injury blocks match flow and treatment reduces duration', () => {
