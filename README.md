@@ -22,6 +22,7 @@ Proyek ini mengembangkan Football Rising Star menjadi pengalaman game berbasis D
 ## Panduan penggunaan
 
 Panduan lengkap untuk player, Coach, Versus, operator, administrator, deployment, fallback commands, troubleshooting, dan batas parity tersedia di [`docs/DISCORD_BOT_PLAYER_ADMIN_GUIDE.md`](docs/DISCORD_BOT_PLAYER_ADMIN_GUIDE.md).
+Checklist pengujian sebelum closed beta/public release tersedia di [`docs/RELEASE_READINESS_TEST_PLAN.md`](docs/RELEASE_READINESS_TEST_PLAN.md).
 
 ## Slash command fallback / operator
 
@@ -130,7 +131,7 @@ pnpm build
 pnpm test
 ```
 
-Test suite saat ini berisi **82 test lulus dan 0 gagal**, termasuk weekly UI/state integration, Player/Coach/Versus career, Coach full-league projection, mode isolation, Player/Coach Champions isolation, multi-club fixture, Versus Home/custom-ID ownership, legal Versus lineup submission, two-half settlement, standings, reward ledger idempotency, daily streak, weekly events, market cooldown/transfer guard, contract, achievements, rate limiter, command/group queue, interactive components, atomic JSON batch persistence, dan konfigurasi balance.
+Test suite saat ini berisi **87 test lulus dan 0 gagal**, termasuk release-readiness invalid transition, economy boundary, match telemetry bounds, weekly UI/state integration, Player/Coach/Versus career, Coach full-league projection, mode isolation, Player/Coach Champions isolation, multi-club fixture, Versus Home/custom-ID ownership, legal Versus lineup submission, two-half settlement, standings, reward ledger idempotency, daily streak, weekly events, market cooldown/transfer guard, contract, achievements, rate limiter, command/group queue, interactive components, atomic JSON batch persistence, dan konfigurasi balance.
 
 Advanced scout dan player-status improvement disebut oleh changelog publik battle mode, tetapi belum diaktifkan sebagai mechanic baru karena harga, offer generation, persistence, dan effect formula tidak tersedia dari bukti publik. Menampilkan UI palsu untuk dua mechanic tersebut akan lebih berisiko daripada menunggu ruleset yang dapat diaudit.
 
