@@ -1,0 +1,42 @@
+# Football Rising Star Discord Bot
+# Salin file ini menjadi .env di root project:
+# cp DISCORD_BOT_ENV_TEMPLATE.txt .env
+# Jangan commit file .env atau membagikan DISCORD_TOKEN.
+
+# Wajib: token bot dari Discord Developer Portal
+DISCORD_TOKEN=PASTE_DISCORD_BOT_TOKEN_HERE
+
+# Wajib: Application ID / Client ID dari Discord Developer Portal
+DISCORD_CLIENT_ID=PASTE_DISCORD_APPLICATION_CLIENT_ID_HERE
+
+# Direkomendasikan untuk testing cepat di satu server Discord
+# Dapatkan dari Developer Mode Discord → klik kanan server → Copy Server ID
+DISCORD_GUILD_ID=PASTE_TEST_SERVER_ID_HERE
+
+# Wajib jika ingin menggunakan /admin
+# Masukkan Discord User ID admin; pisahkan beberapa ID dengan koma
+# Contoh: 111111111111111111,222222222222222222
+ADMIN_USER_IDS=PASTE_ADMIN_USER_ID_HERE
+
+# false = mode normal: hanya /play, semua gameplay memakai tombol/menu
+# true  = daftarkan slash command fallback/operator tambahan
+REGISTER_FALLBACK_COMMANDS=false
+
+# Development menggunakan JSON store jika DATABASE_URL dikosongkan
+NODE_ENV=development
+DATA_FILE=./data/players.json
+
+# Untuk production PostgreSQL, isi DATABASE_URL dan ubah NODE_ENV=production.
+# Jangan gunakan password contoh ini.
+# DATABASE_URL=postgresql://USERNAME:PASSWORD@HOST:5432/DATABASE_NAME
+
+# Maintenance dan rate limit; nilai aman untuk development
+MAINTENANCE_INTERVAL_MS=900000
+RATE_LIMIT_MAX=12
+RATE_LIMIT_WINDOW_MS=60000
+RUNTIME_LOCK_FILE=./data/discord-bot.lock
+
+# Setelah file diisi:
+# 1. Simpan sebagai .env
+# 2. Jalankan: pnpm commands:register
+# 3. Jalankan: pnpm dev
