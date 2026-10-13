@@ -246,6 +246,14 @@ export function playMatch(profileInput: PlayerProfile, now = new Date(), rng: Ra
   const opponentGoals = simulatePlayerGoals(opponentRating, playerRating + 2, rng);
   const outcome = outcomeFromScore(playerGoals, opponentGoals);
   const playerScore = playerMatchScoreFor(playerGoals, opponentGoals, rng);
+  const possession = clamp(Math.round(50 + (playerRating - opponentRating) / 3 + (rng.next() - 0.5) * 10), 25, 75);
+  const opponentPossession = 100 - possession;
+  const shots = clamp(Math.round(6 + playerRating / 12 + rng.next() * 5), 3, 30);
+  const opponentShots = clamp(Math.round(6 + opponentRating / 12 + rng.next() * 5), 3, 30);
+  const shotsOnTarget = clamp(Math.round(shots * clamp(0.28 + (playerRating - opponentRating) / 300, 0.18, 0.68)), 1, shots);
+  const opponentShotsOnTarget = clamp(Math.round(opponentShots * clamp(0.28 + (opponentRating - playerRating) / 300, 0.18, 0.68)), 1, opponentShots);
+  const corners = clamp(Math.round(1 + shots / 5 + rng.next() * 3), 0, 12);
+  const opponentCorners = clamp(Math.round(1 + opponentShots / 5 + rng.next() * 3), 0, 12);
   const reward = playerMatchRewardFor(outcome);
   const exp = reward.exp;
   const money = reward.money;
@@ -260,6 +268,7 @@ export function playMatch(profileInput: PlayerProfile, now = new Date(), rng: Ra
     opponentGoals,
     playerScore,
     rewards: { money, exp },
+    stats: { possession, opponentPossession, shots, opponentShots, shotsOnTarget, opponentShotsOnTarget, corners, opponentCorners },
     week: profile.careerWeek ?? profile.league.matchday,
     formulaVersion: PLAYER_FORMULA_VERSION
   };

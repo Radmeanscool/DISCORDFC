@@ -175,6 +175,7 @@ export function pendingExpControls(userId: string): ActionRowBuilder<StringSelec
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`frs:${userId}:menu-player`).setLabel('Weekly Hub').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`frs:${userId}:player-league`).setLabel('League Table').setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(`frs:${userId}:menu-home`).setLabel('Game Home').setStyle(ButtonStyle.Secondary)
     )
   ];

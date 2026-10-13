@@ -43,6 +43,10 @@ test('match simulation produces a record, rewards, and league progress', () => {
   assert.equal(result.profile.league.matchday, 2);
   assert.equal(result.profile.money > profile.money, true);
   assert.equal(result.narrative.length >= 3, true);
+  assert.ok(result.record.stats);
+  assert.equal(result.record.stats!.possession + result.record.stats!.opponentPossession, 100);
+  assert.equal(result.record.stats!.shotsOnTarget <= result.record.stats!.shots, true);
+  assert.equal(result.record.stats!.opponentShotsOnTarget <= result.record.stats!.opponentShots, true);
 });
 
 test('json store persists profiles atomically', async () => {

@@ -51,7 +51,7 @@ test('main menu exposes the three gameplay modes and player creation is menu-dri
   assert.ok(coach.includes('frs:user-menu:coach-job'));
   assert.ok(coach.includes('frs:user-menu:coach-champions'));
   const pending = pendingExpControls('user-menu').flatMap((row) => row.toJSON().components.map((component) => component.custom_id));
-  assert.deepEqual(pending, ['frs:user-menu:pending-exp-select', 'frs:user-menu:menu-player', 'frs:user-menu:menu-home']);
+  assert.deepEqual(pending, ['frs:user-menu:pending-exp-select', 'frs:user-menu:menu-player', 'frs:user-menu:player-league', 'frs:user-menu:menu-home']);
 });
 
 test('Player Weekly Hub changes primary actions by weekly stage', () => {

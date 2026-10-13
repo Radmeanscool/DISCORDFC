@@ -236,6 +236,16 @@ export interface MatchRecord {
     money: number;
     exp: number;
   };
+  stats?: {
+    possession: number;
+    opponentPossession: number;
+    shots: number;
+    opponentShots: number;
+    shotsOnTarget: number;
+    opponentShotsOnTarget: number;
+    corners: number;
+    opponentCorners: number;
+  };
   week?: number;
   injury?: InjuryState;
   formulaVersion?: string;
