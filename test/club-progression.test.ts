@@ -20,9 +20,10 @@ test('official club data exposes league 1011 and supports club transfer', () => 
 
 test('recovery data seeds an official club and roster names', () => {
   const profile = ensureClubState(createInitialProfile('recovery-1', 'Recovery', 'FW'), new Date('2026-01-01T00:00:00.000Z'), new SeededRandom(5));
-  assert.equal(profile.club, 'Arsenal');
+  const starter = listOfficialClubs(1011).find((club) => club.nameEn === profile.club)!;
+  assert.equal(starter.grade >= 3, true);
   assert.equal(profile.clubState?.provenance, 'RECOVERY_VERIFIED');
-  assert.equal(profile.clubState?.roster.some((player) => player.name === 'David Raya'), true);
+  assert.equal(profile.clubState?.roster.length, 16);
 });
 
 test('club state creates a roster and can change formation and tactic', () => {

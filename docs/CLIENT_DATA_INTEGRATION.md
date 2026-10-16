@@ -20,7 +20,7 @@ Player extractor menggunakan field yang dapat divalidasi dari `PlayerConfig`: na
 
 ## Integrasi runtime
 
-`src/config/recovery-data.ts` memuat `data/recovery/club_202603.json` dan `data/recovery/player_202603_fixed_fields.json`. `createInitialProfile` kini memilih Arsenal dari league 1011 apabila data recovery tersedia. `ensureClubState` memakai official club ID, grade, prestige, salary budget, dan roster names terverifikasi, lalu menggunakan fallback generic hanya jika record tidak tersedia. Docker image membawa folder `data/recovery`.
+`src/config/recovery-data.ts` memuat `data/recovery/club_202603.json` dan `data/recovery/player_202603_fixed_fields.json`. `createInitialProfile` memilih klub starter grade rendah secara deterministik dari league 1011; klub besar seperti Arsenal tetap tersedia melalui transfer Club Office. `ensureClubState` memakai official club ID, grade, prestige, salary budget, dan roster names terverifikasi, lalu menggunakan fallback generic hanya jika record tidak tersedia. Docker image membawa folder `data/recovery`.
 
 ## Batasan provenance
 

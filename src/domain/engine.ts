@@ -83,6 +83,12 @@ function nextAbilityExp(level: number): number {
 function defaultAbilities(): Record<AbilityId, AbilityState> {
   return Object.fromEntries(ABILITIES.map((id) => [id, { level: 1, exp: 0 }])) as Record<AbilityId, AbilityState>;
 }
+function starterClubName(): string {
+  const starter = RECOVERY_CLUBS
+    .filter((club) => club.league === 1011)
+    .sort((a, b) => b.grade - a.grade || a.prestige - b.prestige || a.id - b.id)[0];
+  return starter?.nameEn ?? 'Rising City FC';
+}
 
 function cloneProfile(profile: PlayerProfile): PlayerProfile {
   return structuredClone(profile);
@@ -142,7 +148,7 @@ export function createInitialProfile(userId: string, displayName: string, positi
     updatedAt: timestamp,
     age: 15,
     position,
-    club: RECOVERY_CLUBS.find((club) => club.league === 1011)?.nameEn ?? 'Rising City FC',
+    club: starterClubName(),
     money: 1_000,
     hp: 100,
     maxHp: 100,

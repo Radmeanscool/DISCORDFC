@@ -76,7 +76,7 @@ Flow yang direkomendasikan adalah `/play` → pilih mode → pilih aksi pada men
 
 ## Data client 2.8.0
 
-Audit client terbaru berhasil memparse **332 official club record** dari `cfg_club_202603` dan **5.133 player record fixed-field** dari payload `cfg_player_202603`. Data ini tersimpan di `data/recovery/` dengan provenance dan dimuat oleh `src/config/recovery-data.ts`. Profile baru memulai karier di Arsenal jika data recovery tersedia; roster klub memakai nama player client seperti David Raya, Timber, Saliba, dan Gabriel. Position code mengikuti dump: FW 1–5, MF 6–9, DF 10–12, GK 13.
+Audit client terbaru berhasil memparse **332 official club record** dari `cfg_club_202603` dan **5.133 player record fixed-field** dari payload `cfg_player_202603`. Data ini tersimpan di `data/recovery/` dengan provenance dan dimuat oleh `src/config/recovery-data.ts`. Profile baru memulai karier di klub starter grade rendah yang dipilih deterministik dari league 1011; klub besar seperti Arsenal dibuka melalui jalur transfer Club Office. Roster klub memakai nama player client sesuai official club ID. Position code mengikuti dump: FW 1–5, MF 6–9, DF 10–12, GK 13.
 
 Field ability dictionary variable-length belum dipaksakan menjadi overall resmi. Overall runtime masih diberi label `RECOVERY_INFERRED`, sedangkan name, club ID, league, position, age, salary, prestige, grade, formations, dan tactics yang diparse langsung diberi label `RECOVERY_VERIFIED`. Endpoint backend dan Remote Config tidak diaktifkan karena audit hanya mengonfirmasi dependency Firebase, bukan endpoint produksi.
 
