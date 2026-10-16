@@ -7,7 +7,7 @@ import { assignMatchExp, ensureGameplayState, formatDetailedSkills, formatGamepl
 import { formatContract, getContractStatus, renewContract, signContract } from '../domain/contract-engine.js';
 import { joinOfficialClub, listOfficialClubs, officialClubTransferFee } from '../domain/official-club-engine.js';
 import { acceptJobOffer, advanceCoachRound, assignCoachExp, createCoachCareer, declineJobOffer, formatCoachProfile, generateJobOffer, rebirthCoach, resolveCoachEvent, retireCoach, settleCoachSeason } from '../domain/coach-career-engine.js';
-import { assignVersusMatchmaking, createVersusSeason, formatVersusBattle, getVersusStandings, processVersusRound, queueVersusMatchmaking, settleVersusSeason, submitVersusLineup, syncVersusProfileWithSeason } from '../domain/versus-engine.js';
+import { assignVersusMatchmaking, createVersusSeason, formatVersusBattle, getVersusStandings, processVersusRound, queueVersusMatchmaking, settleVersusSeason, submitVersusLineup, syncVersusProfileWithSeason, versusLeagueCode } from '../domain/versus-engine.js';
 import { availableVersusCoin, createVersusMarket, placeVersusBid, settleExpiredVersusMarket } from '../domain/versus-economy.js';
 import { ABILITY_LABELS, COACH_ABILITIES, COACH_ABILITY_LABELS, DETAILED_SKILL_LABELS, DETAILED_SKILLS, FORMATIONS, HONOR_CATEGORY_LABELS, POSITION_LABELS, TACTICS, TRAINER_CATALOG, TRICK_CATALOG, type AbilityId, type CoachAbilityId, type CultureSubject, type DetailedSkillId, type FormationId, type MatchRecord, type PlayerProfile, type Position, type TacticId, type VersusSeason } from '../domain/types.js';
 import type { BatchPlayerStore, PlayerStore, VersusGroupLockStore } from '../storage/json-store.js';
@@ -307,7 +307,7 @@ function versusRegistrationEmbed(profile: PlayerProfile, season?: VersusSeason):
     .setTitle(`${club.name} · Versus Registration`)
     .setDescription(`Status **${versus.status}**\nMatchmaking **${versus.matchmaking?.status ?? 'LEGACY'}**\nGroup code **${versus.groupCode ?? '-'}**\n\nPada public queue, team dan competition ditetapkan oleh system matchmaking. Group code hanya digunakan untuk private-group fallback. Registrasi dan settlement tetap dikelola oleh server season.`)
     .addFields(
-      { name: 'Competition', value: season ? `${season.leagueId} · Grade ${season.grade}` : '-', inline: true },
+      { name: 'Competition', value: season ? `Liga ${versusLeagueCode(season.grade)}` : '-', inline: true },
       { name: 'Capacity', value: season ? `${season.clubs.length}/${season.capacity} clubs` : '-', inline: true },
       { name: 'Season state', value: season?.state ?? '-', inline: true },
       { name: 'Club', value: club.name, inline: true },

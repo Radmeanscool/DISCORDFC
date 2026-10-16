@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createInitialProfile, SeededRandom } from '../src/domain/engine.js';
-import { assignVersusMatchmaking, createVersusSeason, enrollVersus, getVersusStandings, processVersusRound, queueVersusMatchmaking, settleVersusSeason, submitVersusLineup, syncVersusProfileWithSeason } from '../src/domain/versus-engine.js';
+import { assignVersusMatchmaking, createVersusSeason, enrollVersus, getVersusStandings, processVersusRound, queueVersusMatchmaking, settleVersusSeason, submitVersusLineup, syncVersusProfileWithSeason, versusLeagueCode } from '../src/domain/versus-engine.js';
 import type { PlayerProfile } from '../src/domain/types.js';
 
 function makeMembers(): PlayerProfile[] {
@@ -36,6 +36,21 @@ test('Versus creates an isolated multi-club home-away season', () => {
   assert.equal(season.clubs.some((club) => club.id === first.versus!.clubId && club.id !== first.club), true);
   assert.equal(first.coach, undefined);
   assert.equal(first.clubState, undefined);
+});
+
+test('Versus displays letter leagues and marks champion and runner-up promotion targets', () => {
+  assert.equal(versusLeagueCode(0), 'S');
+  assert.equal(versusLeagueCode(1), 'A');
+  assert.equal(versusLeagueCode(2), 'B');
+  const [first, second] = makeMembers();
+  let season = createVersusSeason('GROUP-42', [first, second], new Date('2026-01-01T00:00:00.000Z'), 4);
+  const totalRounds = 2 * (season.clubs.length - 1);
+  for (let round = 1; round <= totalRounds; round += 1) season = processVersusRound(season, round, new Date(`2026-01-${String(round + 1).padStart(2, '0')}T00:00:00.000Z`), new SeededRandom(round));
+  const finished = settleVersusSeason(season, new Date('2026-02-01T00:00:00.000Z'));
+  const topTwo = finished.rewards.filter((reward) => reward.rank <= 2);
+  assert.equal(topTwo.length, 2);
+  assert.equal(topTwo.every((reward) => reward.promoted && reward.promotedToLeague === 'S'), true);
+  assert.equal(finished.rewards.some((reward) => reward.relegated), false);
 });
 
 test('Versus round settles all scheduled battles with two-half stats and standings', () => {

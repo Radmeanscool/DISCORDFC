@@ -529,6 +529,8 @@ export interface VersusSeasonReward {
   coin: number;
   promoted: boolean;
   relegated: boolean;
+  promotedToLeague?: string;
+  relegatedToLeague?: string;
 }
 
 export type VersusCurrency = 'MONEY' | 'COIN';

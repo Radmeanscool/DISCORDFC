@@ -19,6 +19,22 @@ const FORMATION_SLOTS: Record<FormationId, { GK: number; DF: number; MF: number;
   '4-2-3-1': { GK: 1, DF: 4, MF: 5, FW: 1 }
 };
 const POSITION_ORDER: Array<keyof VersusPlayer['abilities']> = ['atk', 'def', 'speed', 'power', 'strength', 'technique'];
+const VERSUS_LEAGUE_CODES = ['S', 'A', 'B', 'C', 'D', 'E'] as const;
+
+export function versusLeagueCode(grade: number): string {
+  const index = clamp(Math.floor(grade), 0, VERSUS_LEAGUE_CODES.length - 1);
+  return VERSUS_LEAGUE_CODES[index] ?? 'E';
+}
+
+export function versusPromotionLeagueCode(grade: number, promoted: boolean): string | undefined {
+  if (!promoted) return undefined;
+  return versusLeagueCode(Math.max(0, Math.floor(grade) - 1));
+}
+
+export function versusRelegationLeagueCode(grade: number, relegated: boolean): string | undefined {
+  if (!relegated) return undefined;
+  return versusLeagueCode(Math.min(VERSUS_LEAGUE_CODES.length - 1, Math.floor(grade) + 1));
+}
 
 function clone<T>(value: T): T {
   return structuredClone(value);
@@ -605,7 +621,9 @@ export function settleVersusSeason(seasonInput: VersusSeason, now = new Date()):
     money: Math.max(250, 2_000 - (standing.rank - 1) * 150),
     coin: Math.max(1, 20 - Math.floor((standing.rank - 1) / 2)),
     promoted: standing.rank <= 2,
-    relegated: standing.rank > Math.max(4, season.clubs.length - 2)
+    relegated: standing.rank > Math.max(4, season.clubs.length - 2),
+    promotedToLeague: versusPromotionLeagueCode(season.grade, standing.rank <= 2),
+    relegatedToLeague: versusRelegationLeagueCode(season.grade, standing.rank > Math.max(4, season.clubs.length - 2))
   }));
   return season;
 }
