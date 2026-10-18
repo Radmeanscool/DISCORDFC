@@ -19,6 +19,7 @@ import { runMaintenance, runVersusMaintenance } from '../jobs/maintenance.js';
 import { log } from '../observability/logger.js';
 import { ratingSkillsFor } from '../domain/player-formulas.js';
 import { PLAYER_OVERLAY_SUMMARY } from '../config/recovery-data.js';
+import { BUILD_LABEL } from '../config/build-info.js';
 import { resolveModeCommand } from './commands.js';
 import {
   championsControls,
@@ -1277,7 +1278,7 @@ async function routeCommand(interaction: ChatInputCommandInteraction, ctx: Ctx, 
       const versusClubs = profiles.filter((profile) => profile.versus).length;
       const pending = profiles.reduce((sum, profile) => sum + (profile.notifications ?? []).filter((item) => item.status === 'PENDING').length, 0);
       const rosterData = PLAYER_OVERLAY_SUMMARY ? `APK + overlay Transfermarkt (${PLAYER_OVERLAY_SUMMARY.clubs} klub · ${PLAYER_OVERLAY_SUMMARY.players} pemain · snapshot ${PLAYER_OVERLAY_SUMMARY.snapshot})` : 'APK recovery saja';
-      return { embeds: [info('Bot Operations', `Profiles **${profiles.length}** · Coach **${profiles.filter((profile) => profile.coach).length}** · Versus clubs **${versusClubs}**\nPending DM **${pending}**\nPersistence **${process.env.DATABASE_URL ? 'PostgreSQL' : 'JSON'}** · ${process.env.NODE_ENV ?? 'development'}\nData roster: ${rosterData}`)] };
+      return { embeds: [info('Bot Operations', `Profiles **${profiles.length}** · Coach **${profiles.filter((profile) => profile.coach).length}** · Versus clubs **${versusClubs}**\nPending DM **${pending}**\nPersistence **${process.env.DATABASE_URL ? 'PostgreSQL' : 'JSON'}** · ${process.env.NODE_ENV ?? 'development'}\nData roster: ${rosterData}\nBuild **${BUILD_LABEL}**`)] };
     }
     case 'help':
       return { embeds: [info('Football Rising Star — Panduan', 'Mulai dengan `/play`, lalu semua aksi lewat tombol.').addFields(

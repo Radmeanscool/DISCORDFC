@@ -11,7 +11,14 @@ try {
 } catch {
   tsc = undefined;
 }
-if (tsc) execFileSync(process.execPath, [tsc, '-p', 'tsconfig.json'], { stdio: 'inherit' });
-else if (!existsSync('./dist/index.js')) throw new Error('TypeScript belum terpasang dan dist/ belum ada. Jalankan `npm install` (tanpa --omit=dev) lalu start ulang.');
+if (tsc) {
+  console.log('[launcher] Compiling TypeScript sources…');
+  execFileSync(process.execPath, [tsc, '-p', 'tsconfig.json'], { stdio: 'inherit' });
+} else if (existsSync('./dist/index.js')) {
+  // Without TypeScript the bot would silently run whatever old build is in dist/.
+  console.warn('[launcher] PERINGATAN: TypeScript tidak terpasang, menjalankan dist/ yang sudah ada (bisa versi lama). Jalankan `npm install` tanpa --omit=dev atau hapus folder dist/.');
+} else {
+  throw new Error('TypeScript belum terpasang dan dist/ belum ada. Jalankan `npm install` (tanpa --omit=dev) lalu start ulang.');
+}
 
 await import('./dist/index.js');

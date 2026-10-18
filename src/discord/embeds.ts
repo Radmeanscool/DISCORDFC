@@ -12,6 +12,7 @@ import { dmEnabled } from '../domain/notification-engine.js';
 import { abilityScore, formatVersusBattle, getVersusStandings, versusLeagueCode, versusTotalRounds } from '../domain/versus-engine.js';
 import { availableVersusCoin, listingAbilityScore, minimumVersusBid } from '../domain/versus-economy.js';
 import { GAME_BALANCE } from '../config/game-balance.js';
+import { BUILD_LABEL } from '../config/build-info.js';
 import {
   ABILITY_LABELS,
   COACH_ABILITIES,
@@ -60,6 +61,7 @@ function discordTime(iso: string | undefined, style: 'f' | 'R' = 'f'): string {
 export function gameHomeEmbed(profile?: PlayerProfile): EmbedBuilder {
   if (!profile) {
     return embed('Football Rising Star · Game Home', 'Pilih mode untuk mulai. Player, Coach, dan Versus memiliki state terpisah; semua aksi berikutnya lewat tombol dan menu.')
+      .setFooter({ text: BUILD_LABEL })
       .addFields(
         field('Player Mode', 'Karier atlet: weekly update, training, pertandingan liga, EXP, kontrak, transfer, honors, rebirth.'),
         field('Coach Mode', 'Manajemen klub: board target, ability coach, formation/tactic, transfer market, job offer, season settlement.'),
@@ -72,7 +74,7 @@ export function gameHomeEmbed(profile?: PlayerProfile): EmbedBuilder {
       field('Coach Mode', profile.coach ? `${profile.coach.coachName} · ${profile.coach.status} · approval ${profile.coach.approval}/100` : 'Belum dimulai', true),
       field('Versus Mode', profile.versus ? `${profile.versus.club.name} · Liga ${versusLeagueCode(profile.versus.club.grade)} · ${profile.versus.status}` : 'Belum ditugaskan', true)
     )
-    .setFooter({ text: 'Command /play hanya pintu masuk; navigasi lewat tombol.' });
+    .setFooter({ text: `Command /play hanya pintu masuk; navigasi lewat tombol. · ${BUILD_LABEL}` });
 }
 
 // ----------------------------------------------------------------- Player Mode

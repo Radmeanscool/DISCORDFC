@@ -12,6 +12,7 @@ import { BackgroundWorker, createMaintenanceWorker } from './jobs/background-wor
 import { NotificationDispatcher, PermanentDeliveryError, type NotificationSender } from './jobs/notification-dispatcher.js';
 import { log } from './observability/logger.js';
 import { loadRuntimeConfig } from './config/runtime.js';
+import { BUILD_LABEL } from './config/build-info.js';
 import { JsonPlayerStore } from './storage/json-store.js';
 import { PostgresPlayerStore } from './storage/postgres-store.js';
 import type { MaintenanceLockStore, PlayerStore } from './storage/json-store.js';
@@ -109,7 +110,7 @@ const notificationWorker = new BackgroundWorker({
 });
 
 client.once(Events.ClientReady, (readyClient) => {
-  log('info', 'bot_ready', { user: readyClient.user.tag, persistence: pool ? 'postgresql' : 'json', environment: config.nodeEnv, maintenanceIntervalMs: config.maintenanceIntervalMs, notificationIntervalMs: config.notificationIntervalMs });
+  log('info', 'bot_ready', { build: BUILD_LABEL, user: readyClient.user.tag, persistence: pool ? 'postgresql' : 'json', environment: config.nodeEnv, maintenanceIntervalMs: config.maintenanceIntervalMs, notificationIntervalMs: config.notificationIntervalMs });
   // Panel hosts often cannot run `pnpm commands:register` separately; opt in to registering here.
   if (process.env.REGISTER_COMMANDS_ON_START === 'true') {
     registerCommands({ ...config, discordClientId: config.discordClientId ?? readyClient.application.id })
