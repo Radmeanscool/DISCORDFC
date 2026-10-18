@@ -291,7 +291,7 @@ REGISTER_FALLBACK_COMMANDS=false pnpm commands:register   # hanya /play
 REGISTER_FALLBACK_COMMANDS=true pnpm commands:register    # + command operator
 ```
 
-Di hosting panel tanpa terminal (mis. Pella), set `REGISTER_COMMANDS_ON_START=true`: bot mendaftarkan `/play` setiap kali start (global jika `DISCORD_GUILD_ID` kosong, bisa butuh beberapa menit sebelum muncul). `npm start` otomatis menjalankan build TypeScript lebih dulu (`prestart`), jadi startup command cukup `npm start` setelah `npm install`.
+Di hosting panel tanpa terminal (mis. Pella), set `REGISTER_COMMANDS_ON_START=true`: bot mendaftarkan `/play` setiap kali start (global jika `DISCORD_GUILD_ID` kosong, bisa butuh beberapa menit sebelum muncul). `npm start` otomatis menjalankan build TypeScript lebih dulu (`prestart`), jadi startup command cukup `npm start` setelah `npm install`. Untuk host yang meminta *Main file* (menjalankan `node <file>`), isi `index.js`: launcher di root ini meng-compile TypeScript lalu menjalankan `dist/index.js`.
 
 ### 7.5 Admin permission
 
