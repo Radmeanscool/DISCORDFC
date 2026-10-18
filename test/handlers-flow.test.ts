@@ -5,6 +5,9 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { ComponentType, MessageFlags, type APIActionRowComponent, type APIEmbed } from 'discord.js';
 import { handleComponent } from '../src/discord/handlers.js';
+
+// Live-match frames are still sent, just without the real-time pause.
+process.env.MATCH_ANIMATION_MS = '1';
 import { JsonPlayerStore } from '../src/storage/json-store.js';
 
 /** Minimal stand-in for a Discord component interaction; records every payload the handler sends. */
@@ -74,13 +77,20 @@ function validatePayload(payload: Record<string, unknown>): { ids: string[]; emb
 class Session {
   constructor(private readonly store: JsonPlayerStore, readonly userId: string) {}
 
-  async click(action: string, values?: string[]): Promise<{ ids: string[]; embeds: APIEmbed[]; content: string; options: Map<string, string[]> }> {
+  async click(action: string, values?: string[]): Promise<{ ids: string[]; embeds: APIEmbed[]; content: string; options: Map<string, string[]>; frames: APIEmbed[] }> {
     const interaction = new FakeComponent(`frs:${this.userId}:${action}`, this.userId, values);
     await handleComponent(interaction as never, this.store);
     assert.deepEqual(interaction.notices, [], `${action} should not fail: ${interaction.notices.join(' | ')}`);
-    assert.equal(interaction.edits.length, 1, `${action} edits the panel exactly once`);
-    const { ids, embeds, options } = validatePayload(interaction.edits[0]);
-    return { ids, embeds, options, content: String(interaction.edits[0].content ?? '') };
+    assert.ok(interaction.edits.length >= 1, `${action} edits the panel`);
+    // Every edit before the last is a live-match frame: an embed and no buttons.
+    const frames = interaction.edits.slice(0, -1).map((edit) => {
+      const frame = validatePayload(edit);
+      assert.deepEqual(frame.ids, [], 'live frames carry no components');
+      return frame.embeds[0];
+    });
+    const final = interaction.edits.at(-1)!;
+    const { ids, embeds, options } = validatePayload(final);
+    return { ids, embeds, options, frames, content: String(final.content ?? '') };
   }
 
   async fail(action: string, values?: string[]): Promise<string> {
@@ -116,16 +126,28 @@ test('Player Mode is fully playable through buttons and selects', async () => {
     const profile = (await store.get(player.userId))!;
     assert.equal(profile.contract?.state, 'ACTIVE');
 
-    const week = await player.click('next-week');
+    // One button plays the week: event (if any) → live match → EXP.
+    let week = await player.click('next-week');
     if (week.ids.some((id) => id.endsWith('player-event-select'))) {
+      assert.equal(week.frames.length, 0, 'the event comes before the match');
       const current = (await store.get(player.userId))!;
-      await player.click('player-event-select', [current.weeklyEvent!.choices[0].id]);
+      week = await player.click('player-event-select', [current.weeklyEvent!.choices[0].id]);
     }
-    const match = await player.click('match');
-    if (match.ids.some((id) => id.endsWith('pending-exp-select'))) {
+    assert.equal(week.frames.length, 7, 'kick-off to full-time frames');
+    assert.match(week.frames[0].title ?? '', /LIVE/);
+    assert.match(week.embeds[0].title ?? '', /MENANG|SERI|KALAH/);
+    const afterMatch1 = (await store.get(player.userId))!;
+    assert.ok(afterMatch1.lastMatch?.timeline, 'the match has a timeline');
+    if (week.ids.some((id) => id.endsWith('pending-exp-select'))) {
       const assigned = await player.click('pending-exp-select', ['shots', 'dribbling', 'offBallRunning']);
       assert.match(assigned.content, /EXP dialokasikan/);
     }
+    assert.ok(!week.ids.some((id) => id.endsWith(':match')), 'no separate match button');
+    const menu = await player.click('menu-player');
+    assert.ok(menu.ids.some((id) => id.endsWith('player-menu-select')));
+    assert.ok(menu.ids.length <= 5, `hub stays small: ${menu.ids.join(', ')}`);
+    await player.click('player-menu-select', ['player-profile']);
+    await player.click('player-menu-select', ['contract']);
     // The match rolls injuries with real randomness; an injured player cannot train, so heal first.
     const afterMatch = (await store.get(player.userId))!;
     if ((afterMatch.injury?.weeksRemaining ?? 0) > 0) await store.save({ ...afterMatch, injury: undefined });
@@ -143,6 +165,15 @@ test('Player Mode is fully playable through buttons and selects', async () => {
     assert.match(contract.content, /Klub (menolak|menyetujui)/);
     assert.match(await player.fail('player-champions'), /belum lolos/);
     assert.match(await player.fail('player-retire'), /belum tersedia/);
+
+    // Second week, using the automatic EXP split.
+    let second = await player.click('next-week');
+    if (second.ids.some((id) => id.endsWith('player-event-select'))) {
+      const current = (await store.get(player.userId))!;
+      second = await player.click('player-event-select', [current.weeklyEvent!.choices[0].id]);
+    }
+    if (second.ids.some((id) => id.endsWith('pending-exp-auto'))) assert.match((await player.click('pending-exp-auto')).content, /EXP dibagi/);
+    assert.equal((await store.get(player.userId))!.unassignedMatchExp ?? 0, 0);
   });
 });
 

@@ -3,7 +3,9 @@ import { ensureClubState, finishSeason, isClubSeasonComplete, playClubMatch, syn
 import { advanceContractSeason } from './contract-engine.js';
 import { getRating, type RandomSource } from './engine.js';
 import { formatMoney } from './format.js';
-import { clubStrengthByName, leagueLabel, leagueTier, resolveClubLeagueId } from './league-engine.js';
+import { clubStrengthByName, leagueLabel, leagueTier, officialClubByName, resolveClubLeagueId } from './league-engine.js';
+import { buildMatchTimeline } from './match-timeline.js';
+import { RECOVERY_PLAYERS_BY_CLUB, recoveryPositionGroup } from '../config/recovery-data.js';
 import { generateTransferOffers } from './official-club-engine.js';
 import { personalMatchRewards, PLAYER_FORMULA_VERSION, simulatePersonalPerformance } from './player-formulas.js';
 import { applyAgeDecline } from './skill-engine.js';
@@ -134,8 +136,32 @@ export function playPlayerFixture(profileInput: PlayerProfile, now: Date, rng: R
   }
   profile.totalExp += rewards.exp;
   profile.unassignedMatchExp = (profile.unassignedMatchExp ?? 0) + rewards.exp;
+  const halftime = { team: match.clubIsHome ? match.halftime.homeGoals : match.halftime.awayGoals, opponent: match.clubIsHome ? match.halftime.awayGoals : match.halftime.homeGoals };
+  const opponentOfficial = officialClubByName(match.opponentName, leagueId);
+  // The opponent fields the first 18 official players (club-engine buildOpponentRoster).
+  const opponentAttackers = opponentOfficial ? (RECOVERY_PLAYERS_BY_CLUB.get(opponentOfficial.id) ?? []).slice(0, 18).filter((record) => ['FW', 'MF'].includes(recoveryPositionGroup(record.positionCode))).map((record) => record.nameEn) : [];
+  const matchId = `${profile.userId}-${now.getTime()}`;
+  const ownShots = match.clubIsHome ? match.stats.homeShots : match.stats.awayShots;
+  const opponentShots = match.clubIsHome ? match.stats.awayShots : match.stats.homeShots;
+  const opponentShotsOnTarget = match.clubIsHome ? match.stats.awayShotsOnTarget : match.stats.homeShotsOnTarget;
+  const timeline = buildMatchTimeline({
+    seed: `${matchId}:${match.fixture.matchday}`,
+    teamName: club.name,
+    opponentName: match.opponentName,
+    teamGoals,
+    opponentGoals,
+    halftime,
+    userName: profile.displayName,
+    position: profile.position,
+    personal: performance,
+    teammates: squad.filter((player) => player.id !== userId && !player.isUserPlayer).map((player) => ({ name: player.name, position: player.position })),
+    opponents: opponentAttackers,
+    shots: ownShots,
+    opponentShots,
+    opponentShotsOnTarget
+  });
   const record: MatchRecord = {
-    id: `${profile.userId}-${now.getTime()}`,
+    id: matchId,
     createdAt: now.toISOString(),
     opponent: match.opponentName,
     opponentRating: opponentStrength,
@@ -161,7 +187,9 @@ export function playPlayerFixture(profileInput: PlayerProfile, now: Date, rng: R
     competition: 'LEAGUE',
     matchday: match.fixture.matchday,
     home: match.clubIsHome,
-    teamName: club.name
+    teamName: club.name,
+    halftime,
+    timeline
   };
   profile.lastMatch = record;
   profile.updatedAt = now.toISOString();

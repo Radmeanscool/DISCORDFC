@@ -318,6 +318,19 @@ export interface ClubSeasonResult {
   championsQualified: boolean;
 }
 
+export type MatchTimelineKind = 'GOAL' | 'CHANCE' | 'SAVE' | 'BLOCK' | 'YELLOW' | 'RED' | 'INJURY';
+
+/** One moment of a simulated Player-mode match, shown minute by minute in the live view. */
+export interface MatchTimelineEvent {
+  minute: number;
+  side: 'TEAM' | 'OPPONENT';
+  kind: MatchTimelineKind;
+  /** Display text without the minute. */
+  text: string;
+  /** The user's athlete is the actor. */
+  user?: boolean;
+}
+
 export interface MatchRecord {
   id: string;
   createdAt: string;
@@ -351,6 +364,10 @@ export interface MatchRecord {
   matchday?: number;
   home?: boolean;
   teamName?: string;
+  /** Team-perspective half-time score. */
+  halftime?: { team: number; opponent: number };
+  /** Presentation timeline consistent with the score and the athlete's personal output. */
+  timeline?: MatchTimelineEvent[];
 }
 
 export interface LeagueState {

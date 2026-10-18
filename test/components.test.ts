@@ -52,13 +52,16 @@ function ids(rows: Rows): string[] {
 const LONG_USER = '12345678901234567890';
 const score = (player: Parameters<typeof abilityScore>[0]) => Math.round(abilityScore(player));
 
-test('Player Weekly Hub exposes owner-bound actions including career and mode switches', () => {
-  const all = ids(playerWeeklyControls('user-1', 'READY'));
-  for (const action of ['daily-reward', 'injury', 'honors', 'contract', 'player-champions', 'player-career', 'menu-home', 'menu-coach', 'versus-home']) assert.ok(all.includes(`frs:user-1:${action}`), action);
-  assert.equal(all.every((id) => id.startsWith('frs:user-1:')), true);
+test('Player Weekly Hub keeps four buttons and moves everything else into one menu', () => {
+  const rows = playerWeeklyControls('user-1', 'READY');
+  const all = ids(rows);
+  assert.deepEqual(all, ['frs:user-1:next-week', 'frs:user-1:train', 'frs:user-1:skills', 'frs:user-1:club', 'frs:user-1:player-menu-select']);
+  const menu = rows[1].toJSON().components[0] as { options: Array<{ value: string }> };
+  const actions = menu.options.map((item) => item.value);
+  for (const action of ['player-profile', 'daily-reward', 'injury', 'honors', 'contract', 'player-champions', 'player-career', 'menu-home', 'menu-coach', 'versus-home']) assert.ok(actions.includes(action), action);
   const retired = playerWeeklyControls('user-1', 'READY', true).flatMap((row) => row.toJSON().components);
-  assert.equal(retired.find((item) => item.custom_id === 'frs:user-1:next-week')?.disabled, true);
-  assert.equal(retired.find((item) => item.custom_id === 'frs:user-1:player-career')?.label, 'Rebirth');
+  assert.equal(retired.some((item) => 'custom_id' in item && item.custom_id === 'frs:user-1:next-week'), false);
+  assert.match(String(retired.find((item) => 'custom_id' in item && item.custom_id === 'frs:user-1:player-career')?.label), /Rebirth/);
 });
 
 test('Versus lineup custom ids carry only round and roster version and stay under the Discord limit', () => {
@@ -126,7 +129,7 @@ test('main menu exposes the three gameplay modes and player creation is menu-dri
   assert.deepEqual(ids(playerCreationControls('user-menu')), ['frs:user-menu:player-create-select', 'frs:user-menu:menu-home']);
   const coach = ids(coachControls('user-menu'));
   for (const action of ['coach-round', 'coach-event', 'coach-exp', 'coach-strategy', 'coach-job', 'coach-champions', 'coach-market', 'coach-season-end', 'coach-career']) assert.ok(coach.includes(`frs:user-menu:${action}`), action);
-  assert.deepEqual(ids(pendingExpControls('user-menu')), ['frs:user-menu:pending-exp-select', 'frs:user-menu:menu-player', 'frs:user-menu:player-league', 'frs:user-menu:menu-home']);
+  assert.deepEqual(ids(pendingExpControls('user-menu')), ['frs:user-menu:pending-exp-select', 'frs:user-menu:pending-exp-auto', 'frs:user-menu:player-league', 'frs:user-menu:menu-player']);
   const pendingMenu = pendingExpControls('user-menu')[0].toJSON().components[0];
   assert.equal(pendingMenu.max_values, 12, 'several skills can share the pool');
 });

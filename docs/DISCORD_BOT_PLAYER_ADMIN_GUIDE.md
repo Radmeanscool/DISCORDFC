@@ -75,22 +75,24 @@ Secara default hanya `/play` yang didaftarkan. Balasan `/play` publik; klik pert
 
 ### 3.2 Player Weekly Hub
 
-| Baris | Tombol |
+Hub menampilkan klub dan peringkat, kondisi (HP/energi), laga berikutnya, statistik musim, dan skill utama posisi.
+
+| Baris | Isi |
 |---|---|
-| 1 | **Player Status** · **Training** · **Personal** · **Club** · **Career** (menjadi **Rebirth** setelah pensiun) |
-| 2 | **Next Week** · **Play Match** · **Assign EXP / Detailed Skills** · **Recovery** |
-| 3 | **Weekly Event Decision** (jika ada) · **Daily Reward** · **Contract** · **Honors** · **Champions** |
-| 4 | **Game Home** · **Coach Mode** · **Versus Mode** |
+| 1 | **▶ Next Week** (label berubah sesuai tahap: *Lanjut: Event*, *Main Match*, *Alokasikan EXP*; menjadi **Rebirth** setelah pensiun) · **Latihan** · **Skill** · **Klub** |
+| 2 | Menu **Menu lainnya…**: Profil lengkap, Klasemen, Kontrak, Personal, Trainer, Tricks, Recovery & cedera, Daily reward, Honors, Champions, Karier, Game Home, Coach Mode, Versus Mode |
 
 ### 3.3 Weekly cycle
 
 ```text
-READY → Next Week → [Weekly Event Decision] → MATCH_READY → Play Match → [Assign EXP] → READY
+▶ Next Week → update mingguan → [event: pilih respons] → match live → [alokasi EXP] → hub
 ```
 
-- **Next Week**: recovery mingguan, gaji kontrak, trainer, sponsor, cedera/skors berkurang, peluang event.
-- **Play Match**: memainkan fixture liga berikutnya klub Anda. Pertandingan lain di round itu ikut disimulasikan sehingga klasemen selalu lengkap. Jika cedera, terskors, atau kondisi buruk, Anda absen tetapi klub tetap bermain.
-- **Assign EXP**: pilih **satu** skill (semua EXP masuk ke sana) atau **beberapa** skill (EXP dibagi rata). EXP yang melebihi level maksimal mengalir ke skill lain; jika semua skill sudah 99, EXP dikonversi ke money.
+- **Next Week**: recovery mingguan, gaji kontrak, trainer, sponsor, cedera/skors berkurang, lalu peluang event. Tanpa event, pertandingan langsung dimainkan pada klik yang sama.
+- **Event**: jika muncul, pilih respons di menu; setelah memilih, pertandingan langsung dimulai. Event dan match boleh terjadi di minggu yang sama, bergantian.
+- **Match live**: pesan diperbarui dari kick-off sampai peluit panjang (0′, 15′, 30′, HT, 60′, 75′, FT) dengan gol, peluang, penyelamatan, dan kartu; momen pemain Anda ditebalkan. Hasil sudah tersimpan sebelum animasi berjalan. Jeda antar-frame diatur `MATCH_ANIMATION_MS` (default 1500; `0` = langsung ke hasil). Fixture liga lain di round itu ikut disimulasikan sehingga klasemen selalu lengkap. Jika cedera, terskors, atau kondisi buruk, Anda menonton dari tribun tetapi klub tetap bermain.
+- **Alokasi EXP**: pilih **satu** skill (semua EXP masuk ke sana), **beberapa** skill (dibagi rata), atau **⚡ Auto** (dibagi ke skill utama posisi). EXP yang melebihi nilai maksimal mengalir ke skill lain; jika semua skill sudah 99, EXP dikonversi ke money.
+- **Skill** bernilai 1–99 (bukan level karier). Bar di samping nilai menunjukkan progres EXP menuju +1 poin; tanda `*` = skill utama posisi.
 - Setelah matchday terakhir, season ditutup otomatis: peringkat akhir, promosi/degradasi klub, World Footballer, honors (juara liga, Golden Boot, Young Player), usia +1, sisa kontrak −1 season, dan tawaran transfer. Stage menjadi `SEASON_BREAK` (transfer window terbuka).
 
 ### 3.4 Training

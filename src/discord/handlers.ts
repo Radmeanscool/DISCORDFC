@@ -12,11 +12,12 @@ import { dmEnabled } from '../domain/notification-engine.js';
 import { abilityScore, canPlay, versusLeagueCode, versusPlayerValue } from '../domain/versus-engine.js';
 import { releasableVersusPlayers } from '../domain/versus-club-engine.js';
 import { listingAbilityScore, minimumVersusBid } from '../domain/versus-economy.js';
-import { COACH_ABILITIES, COACH_ABILITY_LABELS, DETAILED_SKILLS, DETAILED_SKILL_LABELS, FORMATIONS, TACTICS, TRICK_CATALOG, type AbilityId, type CoachAbilityId, type CultureSubject, type DetailedSkillId, type FormationId, type PlayerProfile, type Position, type TacticId, type VersusBattle, type VersusClub, type VersusPlayer, type VersusSeason, type VersusSponsorTier } from '../domain/types.js';
+import { ABILITY_LABELS, COACH_ABILITIES, COACH_ABILITY_LABELS, DETAILED_SKILLS, DETAILED_SKILL_LABELS, FORMATIONS, TACTICS, TRICK_CATALOG, type AbilityId, type CoachAbilityId, type CultureSubject, type DetailedSkillId, type FormationId, type PlayerProfile, type Position, type TacticId, type VersusBattle, type VersusClub, type VersusPlayer, type VersusSeason, type VersusSponsorTier } from '../domain/types.js';
 import { joinVersusGroup, leaveWaitingVersusGroup, openVersus, placeVersusBidFor, releaseVersusPlayerFor, scoutVersusPlayerFor, signVersusSponsorFor, startNextVersusSeason, submitVersusLineupFor, toggleVersusDm, withConflictRetry, type VersusView } from '../services/versus-service.js';
 import type { MaintenanceLockStore, PlayerStore } from '../storage/json-store.js';
 import { runMaintenance, runVersusMaintenance } from '../jobs/maintenance.js';
 import { log } from '../observability/logger.js';
+import { ratingSkillsFor } from '../domain/player-formulas.js';
 import { PLAYER_OVERLAY_SUMMARY } from '../config/recovery-data.js';
 import { resolveModeCommand } from './commands.js';
 import {
@@ -42,6 +43,7 @@ import {
   playerEventControls,
   playerInjuryControls,
   playerWeeklyControls,
+  PLAYER_MENU,
   retireConfirmControls,
   trainerControls,
   trainingControls,
@@ -70,11 +72,15 @@ import {
   gameHomeEmbed,
   honorsEmbed,
   leagueTableEmbed,
+  LIVE_CHECKPOINTS,
+  liveMatchEmbed,
   matchResultEmbed,
   ownSubmission,
   playerCareerEmbed,
   playerClubEmbed,
+  playerEventEmbed,
   playerWeeklyEmbed,
+  profileEmbed,
   squadEmbed,
   versusFinishedEmbed,
   versusGlobalRankingEmbed,
@@ -90,8 +96,7 @@ import {
   versusSponsorEmbed,
   versusSquadEmbed,
   versusStandingsEmbed,
-  versusWaitingEmbed,
-  weeklyUpdateEmbed
+  versusWaitingEmbed
 } from './embeds.js';
 
 const ADMIN_USER_IDS = new Set((process.env.ADMIN_USER_IDS ?? '').split(',').map((value) => value.trim()).filter(Boolean));
@@ -103,6 +108,14 @@ interface Panel {
   content?: string;
   embeds?: EmbedBuilder[];
   components?: AnyRow[];
+  /** Shown one after another before the panel itself (live match), without buttons. */
+  frames?: EmbedBuilder[];
+}
+
+/** Delay between live-match frames; 0 shows the result immediately. */
+function animationDelayMs(): number {
+  const value = Number(process.env.MATCH_ANIMATION_MS ?? 1_500);
+  return Number.isFinite(value) && value >= 0 ? value : 1_500;
 }
 
 /** Interaction-independent context: components and fallback commands share the same actions. */
@@ -120,6 +133,14 @@ function info(title: string, description: string): EmbedBuilder {
 
 /** Every edit sets content, embeds, and components, so an in-place panel never keeps stale parts. */
 async function respond(interaction: ChatInputCommandInteraction | ComponentInteraction, panel: Panel): Promise<void> {
+  // The result is already saved; frames only replay it, so an interrupted animation loses nothing.
+  const delay = animationDelayMs();
+  if (delay > 0) {
+    for (const frame of panel.frames ?? []) {
+      await interaction.editReply({ content: '', embeds: [frame], components: [], allowedMentions: { parse: [] } });
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
   const embeds = panel.embeds ?? [];
   await interaction.editReply({ content: panel.content ?? (embeds.length ? '' : '​'), embeds, components: (panel.components ?? []) as never, allowedMentions: { parse: [] } });
 }
@@ -168,24 +189,68 @@ async function createPlayer(ctx: Ctx, position: Position): Promise<Panel> {
   return playerHome(profile, ctx.userId, `Selamat datang di ${profile.club}! Kontrak awal ${profile.contract?.seasons ?? 2} season sudah ditandatangani.`);
 }
 
-async function nextWeek(ctx: Ctx): Promise<Panel> {
-  const result = preparePlayerWeek(await requireProfile(ctx), ctx.now);
-  await ctx.store.save(result.profile);
-  return { embeds: [weeklyUpdateEmbed(result)], components: result.stage === 'EVENT_PENDING' && result.event ? [...playerEventControls(ctx.userId, result.event)] : playerWeeklyControls(ctx.userId, result.stage) };
+function eventPanel(profile: PlayerProfile, userId: string, weeklyNotes: string[] = []): Panel {
+  const event = profile.weeklyEvent!;
+  return { embeds: [playerEventEmbed(event, weeklyNotes)], components: playerEventControls(userId, event) };
 }
 
-async function playWeekMatch(ctx: Ctx): Promise<Panel> {
-  const result = playPreparedWeek(await requireProfile(ctx), ctx.now);
+function expPanel(profile: PlayerProfile, userId: string, content?: string): Panel {
+  return {
+    content,
+    embeds: [info(`📈 Alokasikan ${profile.unassignedMatchExp ?? 0} EXP`, `Pilih satu skill untuk menerima semua EXP, atau beberapa skill untuk membaginya rata. **⚡ Auto** membagi ke skill utama posisimu.\n\n${formatDetailedSkills(profile)}`)],
+    components: pendingExpControls(userId, profile)
+  };
+}
+
+/** Plays the prepared week, saves it, and replays the match as live frames. */
+async function playMatch(ctx: Ctx, profile: PlayerProfile, weeklyNotes: string[]): Promise<Panel> {
+  const result = playPreparedWeek(profile, ctx.now);
   await ctx.store.save(result.profile);
-  return { embeds: [matchResultEmbed(result)], components: result.expAwaitingAssignment > 0 ? pendingExpControls(ctx.userId) : playerWeeklyControls(ctx.userId, result.profile.weekStage ?? 'READY', result.profile.careerStatus === 'RETIRED') };
+  const frames = result.match?.timeline ? LIVE_CHECKPOINTS.map((minute) => liveMatchEmbed(result.match!, minute)) : [];
+  const components = result.expAwaitingAssignment > 0 ? pendingExpControls(ctx.userId, result.profile) : playerWeeklyControls(ctx.userId, result.profile.weekStage ?? 'READY', result.profile.careerStatus === 'RETIRED');
+  return { embeds: [matchResultEmbed(result, weeklyNotes)], components, frames };
+}
+
+/**
+ * The single weekly button: whatever stage the week is in, it moves to the next
+ * step — weekly update, then the event (if any), then the match, then EXP.
+ */
+async function continueWeek(ctx: Ctx): Promise<Panel> {
+  const profile = ensureGameplayState(await requireProfile(ctx), ctx.now);
+  if (profile.careerStatus === 'RETIRED') return playerHome(profile, ctx.userId, 'Karier sudah pensiun. Buka Karier untuk Rebirth.');
+  switch (profile.weekStage ?? 'READY') {
+    case 'EVENT_PENDING':
+      if (profile.weeklyEvent && !profile.weeklyEvent.resolved) return eventPanel(profile, ctx.userId);
+      break;
+    case 'EXP_PENDING':
+      return expPanel(profile, ctx.userId);
+    case 'MATCH_READY':
+      return playMatch(ctx, profile, []);
+    default:
+      break;
+  }
+  const prepared = preparePlayerWeek(profile, ctx.now);
+  if (prepared.stage === 'EVENT_PENDING' && prepared.event) {
+    await ctx.store.save(prepared.profile);
+    return eventPanel(prepared.profile, ctx.userId, prepared.narrative);
+  }
+  return playMatch(ctx, prepared.profile, prepared.narrative);
 }
 
 async function skillsPanel(ctx: Ctx): Promise<Panel> {
   const profile = ensureGameplayState(await requireProfile(ctx), ctx.now);
-  if ((profile.unassignedMatchExp ?? 0) > 0) {
-    return { embeds: [info(`${profile.displayName} · Assign Match EXP`, `Pending EXP **${profile.unassignedMatchExp}**. Pilih satu skill untuk menerima semuanya, atau beberapa skill untuk membagi rata.\n\n${formatDetailedSkills(profile)}`)], components: pendingExpControls(ctx.userId) };
-  }
-  return { embeds: [info(`${profile.displayName} · Detailed Skills`, formatDetailedSkills(profile)).addFields({ name: 'Gameplay state', value: clip(formatGameplayStatus(profile), 1_024) })], components: playerWeeklyControls(ctx.userId, profile.weekStage ?? 'READY', profile.careerStatus === 'RETIRED') };
+  if ((profile.unassignedMatchExp ?? 0) > 0) return expPanel(profile, ctx.userId);
+  return { embeds: [info(`📈 ${profile.displayName} · Skill`, `Nilai skill 1–99. EXP dari pertandingan, latihan, dan event menaikkan skill satu poin setiap bar penuh.\n\n${formatDetailedSkills(profile)}`)], components: playerWeeklyControls(ctx.userId, profile.weekStage ?? 'READY', profile.careerStatus === 'RETIRED') };
+}
+
+async function autoAssignExp(ctx: Ctx): Promise<Panel> {
+  const profile = await requireProfile(ctx);
+  const skills = ratingSkillsFor(profile.position);
+  const pending = profile.unassignedMatchExp ?? 0;
+  if (!pending) return playerHomeAction(ctx, 'Tidak ada EXP yang menunggu.');
+  const result = assignMatchExpEvenly(profile, skills, ctx.now);
+  await ctx.store.save(result.profile);
+  return playerHome(result.profile, ctx.userId, `${result.allocated} EXP dibagi ke ${skills.map((skill) => DETAILED_SKILL_LABELS[skill]).join(', ')}${result.levelsGained ? ` · naik ${result.levelsGained} poin` : ''}.`);
 }
 
 async function assignPendingExp(ctx: Ctx): Promise<Panel> {
@@ -196,19 +261,29 @@ async function assignPendingExp(ctx: Ctx): Promise<Panel> {
   const result = assignMatchExpEvenly(profile, skills, ctx.now);
   await ctx.store.save(result.profile);
   const target = skills.length === 1 ? DETAILED_SKILL_LABELS[skills[0]] : `${skills.length} skill`;
-  return playerHome(result.profile, ctx.userId, `${result.allocated} dari ${pending} EXP dialokasikan ke ${target}${result.levelsGained ? ` · naik ${result.levelsGained} level` : ''}.`);
+  return playerHome(result.profile, ctx.userId, `${result.allocated} dari ${pending} EXP dialokasikan ke ${target}${result.levelsGained ? ` · naik ${result.levelsGained} poin` : ''}.`);
 }
 
 async function trainingPanel(ctx: Ctx, content?: string): Promise<Panel> {
   const profile = ensureGameplayState(await requireProfile(ctx), ctx.now);
   const regularDone = profile.regularTrainingWeek === (profile.careerWeek ?? 1);
-  return { content, embeds: [info('Training', `Regular Training: ${regularDone ? 'sudah dilakukan minggu ini' : 'tersedia (1x per minggu)'} · Energy ${profile.energy}/${profile.maxEnergy}\nDetailed training: ${profile.activeTraining ? `${DETAILED_SKILL_LABELS[profile.activeTraining.skill]} selesai week ${profile.activeTraining.completeAtWeek}` : 'tersedia'}\nTrainer: ${profile.trainer?.active ? `${profile.trainer.tier} ${profile.trainer.type}` : 'tidak ada'}`)], components: trainingControls(ctx.userId) };
+  return {
+    content,
+    embeds: [info('🏋️ Latihan', [
+      `**Latihan rutin** · ${regularDone ? '✅ sudah dilakukan minggu ini' : '🟢 tersedia (1x per minggu)'} · Energi ${profile.energy}/${profile.maxEnergy}`,
+      'Pilih fokus di menu; EXP-nya masuk ke skill yang terkait.',
+      '',
+      `**Latihan skill khusus** · ${profile.activeTraining ? `${DETAILED_SKILL_LABELS[profile.activeTraining.skill]} selesai minggu ${profile.activeTraining.completeAtWeek}` : '🟢 tersedia'}`,
+      `**Trainer** · ${profile.trainer?.active ? `${profile.trainer.tier} ${profile.trainer.type}` : 'belum ada'}`
+    ].join('\n'))],
+    components: trainingControls(ctx.userId)
+  };
 }
 
 async function regularTraining(ctx: Ctx, ability: AbilityId): Promise<Panel> {
   const result = trainPlayer(await requireProfile(ctx), ability, ctx.now);
   await ctx.store.save(result.profile);
-  return playerHome(result.profile, ctx.userId, `Regular Training ${ability}: ${result.statBefore} → ${result.statAfter} (+${result.expGained} EXP ke detailed skill).`);
+  return playerHome(result.profile, ctx.userId, `Latihan ${ABILITY_LABELS[ability] ?? ability}: +${result.expGained} EXP ke skill terkait (${result.statBefore} → ${result.statAfter}).`);
 }
 
 async function detailedTraining(ctx: Ctx, skill: DetailedSkillId): Promise<Panel> {
@@ -749,24 +824,29 @@ async function routeComponent(ctx: Ctx, action: string): Promise<Panel> {
     // Player Mode
     case 'player-create-select':
       return createPlayer(ctx, value(ctx) as Position);
+    // `match` and `player-event` are kept for panels sent before the single weekly button.
     case 'next-week':
-      return nextWeek(ctx);
     case 'match':
-      return playWeekMatch(ctx);
+    case 'player-event':
+      return continueWeek(ctx);
     case 'skills':
       return skillsPanel(ctx);
     case 'pending-exp-select':
       return assignPendingExp(ctx);
-    case 'player-event': {
-      const profile = ensureGameplayState(await requireProfile(ctx), ctx.now);
-      const event = profile.weeklyEvent;
-      if (profile.weekStage !== 'EVENT_PENDING' || !event || event.resolved) throw new Error('Tidak ada event mingguan yang menunggu keputusan.');
-      return { embeds: [info(`Weekly Event · ${event.title}`, event.description)], components: playerEventControls(ctx.userId, event) };
-    }
+    case 'pending-exp-auto':
+      return autoAssignExp(ctx);
     case 'player-event-select': {
       const result = resolvePlayerWeeklyEvent(await requireProfile(ctx), value(ctx), ctx.now);
-      await ctx.store.save(result.profile);
-      return playerHome(result.profile, ctx.userId, `${result.event.title}: ${result.choice.label}. Pertandingan siap dimainkan.`);
+      return playMatch(ctx, result.profile, [`${result.event.title}: kamu memilih "${result.choice.label}".`]);
+    }
+    case 'player-menu-select': {
+      const target = value(ctx);
+      if (!PLAYER_MENU.some(([action]) => action === target)) throw new Error('Menu tidak dikenali.');
+      return routeComponent({ ...ctx, values: [] }, target);
+    }
+    case 'player-profile': {
+      const profile = ensureGameplayState(await requireProfile(ctx), ctx.now);
+      return { embeds: [profileEmbed(profile)], components: playerWeeklyControls(ctx.userId, profile.weekStage ?? 'READY', profile.careerStatus === 'RETIRED') };
     }
     case 'train':
       return trainingPanel(ctx);
@@ -1064,9 +1144,8 @@ async function routeCommand(interaction: ChatInputCommandInteraction, ctx: Ctx, 
     case 'profile':
       return playerHomeAction(ctx);
     case 'next-week':
-      return nextWeek(ctx);
     case 'match':
-      return playWeekMatch(ctx);
+      return continueWeek(ctx);
     case 'league':
     case 'standings':
       return leaguePanel(ctx);

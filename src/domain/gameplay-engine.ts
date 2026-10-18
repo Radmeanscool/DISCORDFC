@@ -4,7 +4,8 @@ import { ensureClubState } from './club-engine.js';
 import { applyTimeRecovery, createInitialProfile, getRating, initialDetailedSkills, MathRandomSource, starterClubName, type RandomSource } from './engine.js';
 import { formatMoney } from './format.js';
 import { ensureSeasonTracking, finishPlayerSeason, freshSeasonStats, playPlayerFixture } from './player-match-engine.js';
-import { detailedTrainingExpFor, skillLevelCost } from './player-formulas.js';
+import { withInjuryEvent } from './match-timeline.js';
+import { detailedTrainingExpFor, ratingSkillsFor, skillLevelCost } from './player-formulas.js';
 import { grantSkillExp, isSkillMaxed } from './skill-engine.js';
 import {
   DETAILED_SKILLS,
@@ -552,6 +553,7 @@ export function playPreparedWeek(profileInput: PlayerProfile, now = new Date(), 
     if (injuryMessage) {
       injury = profile.injury;
       match.injury = injury;
+      if (match.timeline) match.timeline = withInjuryEvent(match.timeline, profile.displayName, match.id);
       narrative.push(injuryMessage);
     }
   }
@@ -660,13 +662,26 @@ export function rebirthPlayer(profileInput: PlayerProfile, now = new Date(), pos
   return { profile: signed, message: `Rebirth #${rebirthCount} selesai: ${nextPosition} usia 15 di ${signed.club} dengan bonus +${bonus} ke semua skill. Money, Hall of Honor, dan riwayat karier dipertahankan.` };
 }
 
+/** Progress bar for monospace blocks, e.g. `███░░░░░`. */
+export function progressBar(share: number, width = 8): string {
+  const filled = Math.round(Math.min(1, Math.max(0, share)) * width);
+  return `${'█'.repeat(filled)}${'░'.repeat(width - filled)}`;
+}
+
+/**
+ * Skill values (1–99) with progress toward the next point, in a code block so
+ * the columns line up. `*` marks the skills that drive the position's rating.
+ */
 export function formatDetailedSkills(profileInput: PlayerProfile): string {
   const profile = ensureGameplayState(profileInput);
-  return DETAILED_SKILLS.map((skill) => {
+  const key = new Set(ratingSkillsFor(profile.position));
+  const lines = DETAILED_SKILLS.map((skill) => {
     const state = profile.detailedSkills![skill];
-    if (state.level >= GAME_BALANCE.skillProgression.maxLevel) return `${DETAILED_SKILL_LABELS[skill]}: Lv ${state.level} (MAX)`;
-    return `${DETAILED_SKILL_LABELS[skill]}: Lv ${state.level} (${state.exp}/${skillLevelCost(state.level)} EXP)`;
-  }).join('\n');
+    const label = `${key.has(skill) ? '*' : ' '} ${DETAILED_SKILL_LABELS[skill]}`.padEnd(21);
+    if (state.level >= GAME_BALANCE.skillProgression.maxLevel) return `${label}${String(state.level).padStart(2)} MAX`;
+    return `${label}${String(state.level).padStart(2)} ${progressBar(state.exp / skillLevelCost(state.level))}`;
+  });
+  return `\`\`\`\n${lines.join('\n')}\n\`\`\`\n\`*\` skill utama posisi · bar = progres ke +1 poin`;
 }
 
 export function formatGameplayStatus(profileInput: PlayerProfile): string {

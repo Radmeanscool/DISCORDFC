@@ -7,6 +7,8 @@ import {
 } from 'discord.js';
 import type { RecoveryClubRecord } from '../config/recovery-data.js';
 import { GAME_BALANCE } from '../config/game-balance.js';
+import { ratingSkillsFor, skillLevelCost } from '../domain/player-formulas.js';
+import { MACRO_SKILL_WEIGHTS } from '../domain/skill-engine.js';
 import {
   COACH_ABILITIES,
   COACH_ABILITY_LABELS,
@@ -16,11 +18,14 @@ import {
   POSITION_LABELS,
   TACTICS,
   TRAINER_CATALOG,
+  type AbilityId,
   type AchievementState,
   type ClubPlayer,
+  type DetailedSkillId,
   type FormationId,
   type MarketListing,
   type PlayerTransferOffer,
+  type PlayerProfile,
   type PlayerWeeklyEvent,
   type Position,
   type TacticId,
@@ -102,39 +107,52 @@ export function playerCreationControls(userId: string): Row[] {
 
 export type PlayerWeeklyStage = 'READY' | 'MATCH_READY' | 'EXP_PENDING' | 'EVENT_PENDING' | 'SEASON_BREAK';
 
-export function playerWeeklyControls(userId: string, stage: PlayerWeeklyStage = 'READY', retired = false): ActionRowBuilder<ButtonBuilder>[] {
-  const canAdvance = !retired && (stage === 'READY' || stage === 'SEASON_BREAK');
-  const canMatch = !retired && stage === 'MATCH_READY';
-  const pendingExp = stage === 'EXP_PENDING';
+/** One primary button walks the week: update → event → live match → EXP. */
+const CONTINUE_LABEL: Record<PlayerWeeklyStage, string> = {
+  READY: '▶ Next Week',
+  SEASON_BREAK: '▶ Next Week',
+  EVENT_PENDING: '▶ Lanjut: Event',
+  MATCH_READY: '▶ Main Match',
+  EXP_PENDING: '▶ Alokasikan EXP'
+};
+
+/** Everything that is not part of the weekly loop lives in one menu. */
+export const PLAYER_MENU: ReadonlyArray<readonly [action: string, label: string, description: string]> = [
+  ['player-profile', '👤 Profil lengkap', 'Skill, kondisi, statistik, dan status'],
+  ['player-league', '📊 Klasemen', 'Tabel liga klubmu'],
+  ['contract', '📝 Kontrak', 'Gaji, durasi, perpanjang, minta kenaikan'],
+  ['player-culture', '🎭 Personal', 'Culture study: charm dan EXP skill'],
+  ['player-trainer', '🧑‍🏫 Trainer', 'Sewa pelatih pribadi'],
+  ['player-tricks', '✨ Tricks', 'Buka trik yang membantu di pertandingan'],
+  ['injury', '🩹 Recovery & cedera', 'Perawatan cedera dan pemulihan'],
+  ['daily-reward', '🎁 Daily reward', 'Klaim hadiah harian'],
+  ['honors', '🏅 Honors', 'Penghargaan dan achievement'],
+  ['player-champions', '🏆 Champions', 'Kompetisi Champions League'],
+  ['player-career', '📜 Karier', 'Riwayat musim, pensiun, rebirth'],
+  ['menu-home', '🏠 Game Home', 'Kembali ke menu utama'],
+  ['menu-coach', '🧑‍💼 Coach Mode', 'Pindah ke mode pelatih'],
+  ['versus-home', '⚔️ Versus Mode', 'Pindah ke liga online']
+];
+
+export function playerWeeklyControls(userId: string, stage: PlayerWeeklyStage = 'READY', retired = false): Row[] {
+  const primary = retired
+    ? button(userId, 'player-career', '🔄 Rebirth', ButtonStyle.Success)
+    : button(userId, 'next-week', CONTINUE_LABEL[stage], ButtonStyle.Success);
   return [
     buttons(
-      button(userId, 'profile', 'Player Status', ButtonStyle.Primary),
-      button(userId, 'train', 'Training', ButtonStyle.Secondary, retired),
-      button(userId, 'player-culture', 'Personal', ButtonStyle.Secondary, retired),
-      button(userId, 'club', 'Club'),
-      button(userId, 'player-career', retired ? 'Rebirth' : 'Career', retired ? ButtonStyle.Success : ButtonStyle.Secondary)
+      primary,
+      button(userId, 'train', '🏋️ Latihan', ButtonStyle.Secondary, retired),
+      button(userId, 'skills', '📈 Skill', ButtonStyle.Secondary),
+      button(userId, 'club', '🏟️ Klub')
     ),
-    buttons(
-      button(userId, 'next-week', canAdvance ? 'Next Week' : 'Weekly Update', ButtonStyle.Success, !canAdvance),
-      button(userId, 'match', canMatch ? 'Play Match' : 'Match', ButtonStyle.Success, !canMatch),
-      button(userId, 'skills', pendingExp ? 'Assign EXP' : 'Detailed Skills', ButtonStyle.Primary),
-      button(userId, 'injury', 'Recovery')
-    ),
-    buttons(
-      ...(stage === 'EVENT_PENDING' ? [button(userId, 'player-event', 'Weekly Event Decision', ButtonStyle.Primary)] : []),
-      button(userId, 'daily-reward', 'Daily Reward'),
-      button(userId, 'contract', 'Contract'),
-      button(userId, 'honors', 'Honors'),
-      button(userId, 'player-champions', 'Champions')
-    ),
-    modeControls(userId)
+    select(userId, 'player-menu-select', '☰ Menu lainnya…', PLAYER_MENU.map(([action, label, description]) => option(action, label, description)))
   ];
 }
 
 export function playerEventControls(userId: string, event: PlayerWeeklyEvent): Row[] {
   return [
-    select(userId, 'player-event-select', 'Pilih respons untuk event mingguan', event.choices.map((choice) => option(choice.id, choice.label, choice.description))),
-    buttons(button(userId, 'menu-player', 'Weekly Hub', ButtonStyle.Primary), button(userId, 'menu-home', 'Game Home'))
+    select(userId, 'player-event-select', 'Pilih responsmu…', event.choices.map((choice) => option(choice.id, choice.label, choice.description))),
+    buttons(button(userId, 'menu-player', '⬅ Hub'))
   ];
 }
 
@@ -167,27 +185,38 @@ export function detailedTrainingControls(userId: string): Row[] {
 }
 
 /** Multi-select: one skill takes the whole pool, several skills split it evenly. */
-export function pendingExpControls(userId: string): Row[] {
+/** EXP step after a match: pick skills (shared evenly) or let the position's key skills take it. */
+export function pendingExpControls(userId: string, profile?: Pick<PlayerProfile, 'position' | 'detailedSkills' | 'unassignedMatchExp'>): Row[] {
+  const key = new Set(profile ? ratingSkillsFor(profile.position) : []);
+  const skillOptions = DETAILED_SKILLS.map((skill) => {
+    const state = profile?.detailedSkills?.[skill];
+    const label = state ? `${DETAILED_SKILL_LABELS[skill]} · ${state.level}` : DETAILED_SKILL_LABELS[skill];
+    const description = state ? `${key.has(skill) ? 'Skill utama · ' : ''}${state.exp}/${skillLevelCost(state.level)} EXP menuju +1` : undefined;
+    return option(skill, label, description);
+  });
+  const pending = profile?.unassignedMatchExp ?? 0;
   return [
-    select(userId, 'pending-exp-select', 'Pilih 1 skill (semua EXP) atau beberapa skill (dibagi rata)', DETAILED_SKILLS.map((skill) => option(skill, DETAILED_SKILL_LABELS[skill])), 1, DETAILED_SKILLS.length),
+    select(userId, 'pending-exp-select', pending ? `Salurkan ${pending} EXP ke… (pilih beberapa = dibagi rata)` : 'Pilih skill (beberapa = dibagi rata)', skillOptions, 1, DETAILED_SKILLS.length),
     buttons(
-      button(userId, 'menu-player', 'Weekly Hub', ButtonStyle.Primary),
-      button(userId, 'player-league', 'League Table'),
-      button(userId, 'menu-home', 'Game Home')
+      button(userId, 'pending-exp-auto', '⚡ Auto: skill utama', ButtonStyle.Primary),
+      button(userId, 'player-league', '📊 Klasemen'),
+      button(userId, 'menu-player', '⬅ Hub')
     )
   ];
 }
 
 export function trainingControls(userId: string): Row[] {
-  const abilities: Array<[string, string]> = [['atk', 'Attack'], ['def', 'Defence'], ['speed', 'Speed'], ['power', 'Power'], ['strength', 'Strength'], ['technique', 'Technique']];
+  const abilities: Array<[AbilityId, string]> = [['atk', '⚔️ Attack'], ['def', '🛡️ Defence'], ['speed', '💨 Speed'], ['power', '💥 Power'], ['strength', '🏋️ Strength'], ['technique', '🎯 Technique']];
+  // The description lists the skills that actually receive the EXP.
+  const skillsOf = (ability: AbilityId) => (Object.keys(MACRO_SKILL_WEIGHTS[ability]) as DetailedSkillId[]).map((skill) => DETAILED_SKILL_LABELS[skill]).join(', ');
   return [
-    select(userId, 'train-select', 'Regular Training (1x per minggu) · pilih ability', abilities.map(([value, label]) => option(value, label))),
+    select(userId, 'train-select', 'Latihan rutin (1x per minggu) · pilih fokus', abilities.map(([value, label]) => option(value, label, skillsOf(value)))),
     buttons(
-      button(userId, 'detailed-train', 'Detailed Skills', ButtonStyle.Primary),
+      button(userId, 'detailed-train', 'Latihan skill khusus', ButtonStyle.Primary),
       button(userId, 'player-tricks', 'Tricks'),
       button(userId, 'player-trainer', 'Trainer'),
-      button(userId, 'player-culture', 'Culture Study'),
-      button(userId, 'menu-player', 'Player Home')
+      button(userId, 'player-culture', 'Personal'),
+      button(userId, 'menu-player', '⬅ Hub')
     )
   ];
 }

@@ -88,10 +88,11 @@ test('release UI exposes only owner-bound controls and correct locked states', (
   const readyIds = ready.map((item) => item.custom_id);
   assert.equal(readyIds.every((id) => id?.startsWith(`frs:${userId}:`)), true);
   assert.equal(ready.find((item) => item.custom_id === `frs:${userId}:next-week`)?.disabled, false);
-  assert.equal(ready.find((item) => item.custom_id === `frs:${userId}:match`)?.disabled, true);
+  assert.equal(readyIds.includes(`frs:${userId}:match`), false, 'the match runs from Next Week');
 
   const pending = pendingExpControls(userId).flatMap((row) => row.toJSON().components);
   assert.equal(pending.map((item) => item.custom_id).every((id) => id?.startsWith(`frs:${userId}:`)), true);
   assert.ok(pending.some((item) => item.custom_id === `frs:${userId}:pending-exp-select`));
   assert.ok(pending.some((item) => item.custom_id === `frs:${userId}:player-league`));
+  assert.ok(pending.some((item) => item.custom_id === `frs:${userId}:pending-exp-auto`));
 });
