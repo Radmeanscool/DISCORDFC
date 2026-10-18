@@ -4,6 +4,7 @@ import { dirname } from 'node:path';
 import { Client, DiscordAPIError, EmbedBuilder, Events, GatewayIntentBits } from 'discord.js';
 import { Pool } from 'pg';
 import { acknowledge, handleCommand, handleComponent, notice } from './discord/handlers.js';
+import { registerCommands } from './discord/command-registration.js';
 import { UserCommandQueue } from './discord/command-queue.js';
 import { UserRateLimiter } from './discord/rate-limit.js';
 import { runMaintenance, runVersusMaintenance } from './jobs/maintenance.js';
@@ -109,6 +110,12 @@ const notificationWorker = new BackgroundWorker({
 
 client.once(Events.ClientReady, (readyClient) => {
   log('info', 'bot_ready', { user: readyClient.user.tag, persistence: pool ? 'postgresql' : 'json', environment: config.nodeEnv, maintenanceIntervalMs: config.maintenanceIntervalMs, notificationIntervalMs: config.notificationIntervalMs });
+  // Panel hosts often cannot run `pnpm commands:register` separately; opt in to registering here.
+  if (process.env.REGISTER_COMMANDS_ON_START === 'true') {
+    registerCommands({ ...config, discordClientId: config.discordClientId ?? readyClient.application.id })
+      .then((result) => log('info', 'commands_registered', result))
+      .catch((error) => log('error', 'commands_register_failed', { error }));
+  }
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {

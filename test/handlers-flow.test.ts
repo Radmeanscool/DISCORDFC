@@ -126,6 +126,9 @@ test('Player Mode is fully playable through buttons and selects', async () => {
       const assigned = await player.click('pending-exp-select', ['shots', 'dribbling', 'offBallRunning']);
       assert.match(assigned.content, /EXP dialokasikan/);
     }
+    // The match rolls injuries with real randomness; an injured player cannot train, so heal first.
+    const afterMatch = (await store.get(player.userId))!;
+    if ((afterMatch.injury?.weeksRemaining ?? 0) > 0) await store.save({ ...afterMatch, injury: undefined });
     await player.click('train');
     await player.click('train-select', ['atk']);
     assert.match(await player.fail('train-select', ['def']), /sudah dilakukan/);
