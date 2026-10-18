@@ -19,7 +19,7 @@ const players: RecoveryPlayerRecord[] = positions.map((positionCode, index) => (
   clubId: LIVERPOOL,
   positionCode,
   price: 0,
-  initAge: index === 11 ? 41 : 20 + (index % 12),
+  initAge: index === 11 ? 41 : 25,
   normalValue: 0,
   auctionValue: 0,
   growType: null,

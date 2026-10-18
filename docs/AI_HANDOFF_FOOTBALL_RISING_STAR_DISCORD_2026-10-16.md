@@ -33,7 +33,7 @@ Aturan pada bagian 11 tetap berlaku dan dipatuhi oleh perubahan ini.
 - `pnpm data:import-players` (`tools/import-player-data.ts`, logika di `src/config/transfermarkt-import.ts`) membangun `data/external/player-overlay.json` dari dataset CC0 transfermarkt-datasets (snapshot 6 Juli 2026, musim 2025/26).
 - `src/config/recovery-data.ts` menerapkan overlay lewat `applyPlayerOverlay`: roster klub resmi yang cocok diganti skuad asli, klub lain tetap memakai roster APK. File APK di `data/recovery/` tidak diubah.
 - Overall pemain impor = kekuatan klub ±6 menurut nilai pasar (`RECOVERY_INFERRED`, band sama dengan roster APK). Versus tidak memakai overlay.
-- Status: importer dan tes siap; overlay data asli belum dibuat karena host unduhan dataset diblokir di environment sesi ini. Panduan: `data/external/README.md`.
+- Status: overlay asli sudah dibuat (snapshot 2026-07-06): 120 klub divisi satu EN/ES/IT/DE/FR + PT/RU/NL/BE + 12 klub pool 9001, 3.587 pemain. Nilai pasar dikoreksi usia (`abilityValue`). Divisi 2–3 dan klub fiktif tetap roster APK. Panduan: `data/external/README.md`.
 
 ---
 

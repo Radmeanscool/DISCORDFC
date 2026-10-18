@@ -6,6 +6,7 @@ Roster hasil decode APK (`data/recovery/player_202603_fixed_fields.json`) tidak 
 |---|---|
 | Sumber | [transfermarkt-datasets](https://github.com/dcaribou/transfermarkt-datasets) (data Transfermarkt, dikurasi David Cariboo) |
 | Lisensi | CC0 1.0 (public domain) — atribusi tidak wajib, tapi tetap dicantumkan |
+| Status | **Sudah diimpor** (snapshot 2026-07-06): 120 klub · 3.587 pemain. Laporan per klub di `player-import-report.json`. |
 | Kesegaran | Pembaruan otomatis dataset berhenti; data terakhir per **6 Juli 2026** (skuad 2025/26, musim yang sama dengan club list APK 202603). Skuad 2026/27 tidak tercakup. |
 | Cakupan | Liga divisi satu (termasuk EN, ES, IT, DE, FR, PT, RU, NL, BE, AT, CH, SCO, GR, SE, PL, CZ, SRB, RO), piala Eropa, ~50.000 pemain |
 
@@ -46,7 +47,8 @@ Hasil: `player-overlay.json` (dimuat bot saat start) dan `player-import-report.j
 - Hanya klub yang skuadnya terkini (`last_season` ≥ `--min-season`) dan punya ≥ `--min-squad` pemain yang diganti. Divisi 2–3, CSKA Sofia, Lokomotiv Plovdiv, enam klub fiktif, dan klub APK yang di dunia nyata tidak berada di divisi satu 2025/26 (mis. Kaiserslautern, Schalke 04, Bastia, Montpellier) tetap memakai roster APK.
 - Per pemain: nama, posisi (`sub_position` → position code), usia dari tanggal lahir, kewarganegaraan, nilai pasar. Dataset tidak punya nomor punggung; `num` adalah urutan skuad.
 - Urutan skuad dibuat seimbang: 11 pertama membentuk 4-4-2, 15 pertama memenuhi kedalaman minimum roster, 18 pertama satu skuad matchday — paling bernilai lebih dulu.
-- Overall pemain impor = kekuatan klub ± 6 menurut rasio nilai pasar terhadap median klub (`RECOVERY_INFERRED`). Band ini sama dengan roster APK, jadi kekuatan antar-klub tidak berubah; yang berubah adalah siapa bintangnya.
+- Nilai pasar dikoreksi usia sebelum dipakai: prospek ≤ 23 tahun diturunkan (harga mereka memuat potensi), veteran ≥ 29 dinaikkan (harga turun cepat walau kemampuannya masih tinggi). Tanpa koreksi ini Salah (34, €22m) kalah dari pemain 17 tahun €30m.
+- Overall pemain impor = kekuatan klub ± 6 menurut rasio nilai terkoreksi terhadap median 18 pemain matchday (`RECOVERY_INFERRED`). Band ini sama dengan roster APK, jadi kekuatan antar-klub tidak berubah; yang berubah adalah siapa bintangnya. Hasil import 2026-07-06: rata-rata offset XI +1,0 (APK +1,4).
 
 ## 4. Koreksi manual
 

@@ -6,6 +6,7 @@ import { GAME_BALANCE } from '../config/game-balance.js';
 import {
   clubParticipants,
   clubPlayerOverall,
+  abilityValue,
   clubPlayerOverallFromValue,
   clubStrengthByName,
   completeLeagueStandings,
@@ -105,12 +106,12 @@ export function syncUserClubPlayer(profile: PlayerProfile): void {
 const OPPONENT_SQUAD_SIZE = 18;
 const clubMedianValues = new Map<number, number>();
 
-// Median market value of the matchday squad, so the players who actually play are
+// Median age-adjusted market value of the matchday squad, so the players who actually play are
 // centred on club strength like the APK rows and reserves fall below it.
 function clubMedianValue(clubId: number): number {
   let median = clubMedianValues.get(clubId);
   if (median === undefined) {
-    const values = (RECOVERY_PLAYERS_BY_CLUB.get(clubId) ?? []).slice(0, OPPONENT_SQUAD_SIZE).map((record) => record.marketValueEur ?? 0).filter((value) => value > 0).sort((a, b) => a - b);
+    const values = (RECOVERY_PLAYERS_BY_CLUB.get(clubId) ?? []).slice(0, OPPONENT_SQUAD_SIZE).map((record) => abilityValue(record.marketValueEur, record.initAge)).filter((value) => value > 0).sort((a, b) => a - b);
     median = values.length ? values[Math.floor(values.length / 2)] : 0;
     clubMedianValues.set(clubId, median);
   }
@@ -124,7 +125,7 @@ function clubMedianValue(clubId: number): number {
 function recoveryOverall(record: RecoveryPlayerRecord): number {
   const club = RECOVERY_CLUB_BY_ID.get(record.clubId);
   const strength = club ? officialClubStrength(club) : 60;
-  if (record.externalId) return clubPlayerOverallFromValue(strength, record.marketValueEur, clubMedianValue(record.clubId));
+  if (record.externalId) return clubPlayerOverallFromValue(strength, abilityValue(record.marketValueEur, record.initAge), clubMedianValue(record.clubId));
   return clubPlayerOverall(strength, record.normalValue);
 }
 

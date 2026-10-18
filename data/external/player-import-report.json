@@ -1,0 +1,2862 @@
+{
+  "generatedAt": "2026-10-18T17:05:59.800Z",
+  "snapshot": "2026-07-06",
+  "clubs": [
+    {
+      "clubId": 101101,
+      "clubName": "Arsenal",
+      "league": 1011,
+      "sourceClubId": "11",
+      "sourceClubName": "Arsenal FC",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 101102,
+      "clubName": "Aston Villa",
+      "league": 1011,
+      "sourceClubId": "405",
+      "sourceClubName": "Aston Villa",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 101103,
+      "clubName": "Chelsea",
+      "league": 1011,
+      "sourceClubId": "631",
+      "sourceClubName": "Chelsea FC",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 101104,
+      "clubName": "Everton",
+      "league": 1011,
+      "sourceClubId": "29",
+      "sourceClubName": "Everton FC",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 101105,
+      "clubName": "Leeds United",
+      "league": 1011,
+      "sourceClubId": "399",
+      "sourceClubName": "Leeds United",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 101106,
+      "clubName": "Liverpool",
+      "league": 1011,
+      "sourceClubId": "31",
+      "sourceClubName": "Liverpool FC",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 101107,
+      "clubName": "Manchester City",
+      "league": 1011,
+      "sourceClubId": "281",
+      "sourceClubName": "Manchester City",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 101108,
+      "clubName": "Manchester United",
+      "league": 1011,
+      "sourceClubId": "985",
+      "sourceClubName": "Manchester United",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 101109,
+      "clubName": "Newcastle United",
+      "league": 1011,
+      "sourceClubId": "762",
+      "sourceClubName": "Newcastle United",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 101110,
+      "clubName": "Nottingham Forest",
+      "league": 1011,
+      "sourceClubId": "703",
+      "sourceClubName": "Nottingham Forest",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 101111,
+      "clubName": "Tottenham Hotspur",
+      "league": 1011,
+      "sourceClubId": "148",
+      "sourceClubName": "Tottenham Hotspur",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 101112,
+      "clubName": "West Ham United",
+      "league": 1011,
+      "sourceClubId": "379",
+      "sourceClubName": "West Ham United",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 101113,
+      "clubName": "Sunderland",
+      "league": 1011,
+      "sourceClubId": "289",
+      "sourceClubName": "Sunderland AFC",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 101114,
+      "clubName": "Wolverhampton",
+      "league": 1011,
+      "sourceClubId": "543",
+      "sourceClubName": "Wolverhampton Wanderers",
+      "sourceLastSeason": 2025,
+      "score": 0.98,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 101115,
+      "clubName": "Fulham",
+      "league": 1011,
+      "sourceClubId": "931",
+      "sourceClubName": "Fulham FC",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 25
+    },
+    {
+      "clubId": 101116,
+      "clubName": "Burnley",
+      "league": 1011,
+      "sourceClubId": "1132",
+      "sourceClubName": "Burnley FC",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 101117,
+      "clubName": "Crystal Palace",
+      "league": 1011,
+      "sourceClubId": "873",
+      "sourceClubName": "Crystal Palace",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 101118,
+      "clubName": "Brighton",
+      "league": 1011,
+      "sourceClubId": "1237",
+      "sourceClubName": "Brighton & Hove Albion",
+      "sourceLastSeason": 2025,
+      "score": 0.96,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 101119,
+      "clubName": "Brentford",
+      "league": 1011,
+      "sourceClubId": "1148",
+      "sourceClubName": "Brentford FC",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 101120,
+      "clubName": "AFC Bournemouth",
+      "league": 1011,
+      "sourceClubId": "989",
+      "sourceClubName": "AFC Bournemouth",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 101201,
+      "clubName": "Blackburn Rovers",
+      "league": 1012,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101202,
+      "clubName": "Middlesbrough",
+      "league": 1012,
+      "sourceClubId": "641",
+      "sourceClubName": "Middlesbrough FC",
+      "sourceLastSeason": 2016,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 101203,
+      "clubName": "Queens Park Rangers",
+      "league": 1012,
+      "sourceClubId": "1039",
+      "sourceClubName": "Queens Park Rangers",
+      "sourceLastSeason": 2014,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 101204,
+      "clubName": "Southampton",
+      "league": 1012,
+      "sourceClubId": "180",
+      "sourceClubName": "Southampton FC",
+      "sourceLastSeason": 2024,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 101205,
+      "clubName": "Birmingham City",
+      "league": 1012,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101206,
+      "clubName": "Charlton Athletic",
+      "league": 1012,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101207,
+      "clubName": "Derby County",
+      "league": 1012,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101208,
+      "clubName": "Ipswich Town",
+      "league": 1012,
+      "sourceClubId": "677",
+      "sourceClubName": "Ipswich Town",
+      "sourceLastSeason": 2024,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 101209,
+      "clubName": "Leicester City",
+      "league": 1012,
+      "sourceClubId": "1003",
+      "sourceClubName": "Leicester City",
+      "sourceLastSeason": 2024,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 101210,
+      "clubName": "Millwall",
+      "league": 1012,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101211,
+      "clubName": "West Bromwich Albion",
+      "league": 1012,
+      "sourceClubId": "984",
+      "sourceClubName": "West Bromwich Albion",
+      "sourceLastSeason": 2020,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 101212,
+      "clubName": "Portsmouth",
+      "league": 1012,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101213,
+      "clubName": "Norwich City",
+      "league": 1012,
+      "sourceClubId": "1123",
+      "sourceClubName": "Norwich City",
+      "sourceLastSeason": 2021,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 101214,
+      "clubName": "Sheffield United",
+      "league": 1012,
+      "sourceClubId": "350",
+      "sourceClubName": "Sheffield United",
+      "sourceLastSeason": 2023,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 101215,
+      "clubName": "Watford",
+      "league": 1012,
+      "sourceClubId": "1010",
+      "sourceClubName": "Watford FC",
+      "sourceLastSeason": 2021,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 101216,
+      "clubName": "Coventry City",
+      "league": 1012,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101217,
+      "clubName": "Preston North End",
+      "league": 1012,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101218,
+      "clubName": "Stoke City",
+      "league": 1012,
+      "sourceClubId": "512",
+      "sourceClubName": "Stoke City",
+      "sourceLastSeason": 2017,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 101219,
+      "clubName": "Sheffield Wednesday",
+      "league": 1012,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101220,
+      "clubName": "Bristol City",
+      "league": 1012,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101301,
+      "clubName": "Wrexham",
+      "league": 1013,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101302,
+      "clubName": "Huddersfield Town",
+      "league": 1013,
+      "sourceClubId": "1110",
+      "sourceClubName": "Huddersfield Town",
+      "sourceLastSeason": 2018,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 101303,
+      "clubName": "Hull City",
+      "league": 1013,
+      "sourceClubId": "3008",
+      "sourceClubName": "Hull City",
+      "sourceLastSeason": 2016,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 101304,
+      "clubName": "Rotherham United",
+      "league": 1013,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101305,
+      "clubName": "Swansea",
+      "league": 1013,
+      "sourceClubId": "2288",
+      "sourceClubName": "Swansea City",
+      "sourceLastSeason": 2017,
+      "score": 0.98,
+      "status": "stale"
+    },
+    {
+      "clubId": 101306,
+      "clubName": "Bolton",
+      "league": 1013,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101307,
+      "clubName": "Reading",
+      "league": 1013,
+      "sourceClubId": "1032",
+      "sourceClubName": "Reading FC",
+      "sourceLastSeason": 2012,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 101308,
+      "clubName": "Blackpool",
+      "league": 1013,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101309,
+      "clubName": "Barnsley",
+      "league": 1013,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101310,
+      "clubName": "Wycombe Wanderers",
+      "league": 1013,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101311,
+      "clubName": "Peterborough United",
+      "league": 1013,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101312,
+      "clubName": "Oxford United",
+      "league": 1013,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101313,
+      "clubName": "Burton",
+      "league": 1013,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101314,
+      "clubName": "Lincoln City",
+      "league": 1013,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101315,
+      "clubName": "Leyton Orient",
+      "league": 1013,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101316,
+      "clubName": "Bristol Rovers",
+      "league": 1013,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101317,
+      "clubName": "Stevenage",
+      "league": 1013,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101318,
+      "clubName": "Port Vale",
+      "league": 1013,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101319,
+      "clubName": "Exeter City",
+      "league": 1013,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 101320,
+      "clubName": "Cambridge United",
+      "league": 1013,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102101,
+      "clubName": "Atlético Madrid",
+      "league": 1021,
+      "sourceClubId": "13",
+      "sourceClubName": "Atlético de Madrid",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 102102,
+      "clubName": "FC Barcelona",
+      "league": 1021,
+      "sourceClubId": "131",
+      "sourceClubName": "FC Barcelona",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 102103,
+      "clubName": "Real Madrid",
+      "league": 1021,
+      "sourceClubId": "418",
+      "sourceClubName": "Real Madrid",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 102104,
+      "clubName": "Athletic Club",
+      "league": 1021,
+      "sourceClubId": "621",
+      "sourceClubName": "Athletic Bilbao",
+      "sourceLastSeason": 2025,
+      "score": 0.98,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 102105,
+      "clubName": "Real Betis Balompié",
+      "league": 1021,
+      "sourceClubId": "150",
+      "sourceClubName": "Real Betis Balompié",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 102106,
+      "clubName": "Celta",
+      "league": 1021,
+      "sourceClubId": "940",
+      "sourceClubName": "Celta de Vigo",
+      "sourceLastSeason": 2025,
+      "score": 0.98,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 102107,
+      "clubName": "Espanyol",
+      "league": 1021,
+      "sourceClubId": "714",
+      "sourceClubName": "RCD Espanyol Barcelona",
+      "sourceLastSeason": 2025,
+      "score": 0.98,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 102108,
+      "clubName": "Mallorca",
+      "league": 1021,
+      "sourceClubId": "237",
+      "sourceClubName": "RCD Mallorca",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 102109,
+      "clubName": "Real Sociedad",
+      "league": 1021,
+      "sourceClubId": "681",
+      "sourceClubName": "Real Sociedad",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 102110,
+      "clubName": "Valencia",
+      "league": 1021,
+      "sourceClubId": "1049",
+      "sourceClubName": "Valencia CF",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 102111,
+      "clubName": "Deportivo Alavés",
+      "league": 1021,
+      "sourceClubId": "1108",
+      "sourceClubName": "Deportivo Alavés",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 102112,
+      "clubName": "Elche",
+      "league": 1021,
+      "sourceClubId": "1531",
+      "sourceClubName": "Elche CF",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 102113,
+      "clubName": "Osasuna",
+      "league": 1021,
+      "sourceClubId": "331",
+      "sourceClubName": "CA Osasuna",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 102114,
+      "clubName": "Rayo Vallecano",
+      "league": 1021,
+      "sourceClubId": "367",
+      "sourceClubName": "Rayo Vallecano",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 102115,
+      "clubName": "Sevilla",
+      "league": 1021,
+      "sourceClubId": "368",
+      "sourceClubName": "Sevilla FC",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 102116,
+      "clubName": "Villarreal",
+      "league": 1021,
+      "sourceClubId": "1050",
+      "sourceClubName": "Villarreal CF",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 102117,
+      "clubName": "Levante",
+      "league": 1021,
+      "sourceClubId": "3368",
+      "sourceClubName": "Levante UD",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 102118,
+      "clubName": "Getafe",
+      "league": 1021,
+      "sourceClubId": "3709",
+      "sourceClubName": "Getafe CF",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 102119,
+      "clubName": "Girona",
+      "league": 1021,
+      "sourceClubId": "12321",
+      "sourceClubName": "Girona FC",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 102120,
+      "clubName": "Real Oviedo",
+      "league": 1021,
+      "sourceClubId": "2497",
+      "sourceClubName": "Real Oviedo",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 102201,
+      "clubName": "La Coruña",
+      "league": 1022,
+      "sourceClubId": "897",
+      "sourceClubName": "Deportivo de La Coruña",
+      "sourceLastSeason": 2017,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 102202,
+      "clubName": "Real Zaragoza",
+      "league": 1022,
+      "sourceClubId": "142",
+      "sourceClubName": "Real Zaragoza",
+      "sourceLastSeason": 2012,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 102203,
+      "clubName": "Racing Santander",
+      "league": 1022,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102204,
+      "clubName": "Sporting de Gijón",
+      "league": 1022,
+      "sourceClubId": "2448",
+      "sourceClubName": "Sporting Gijón",
+      "sourceLastSeason": 2016,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 102205,
+      "clubName": "Real Valladolid",
+      "league": 1022,
+      "sourceClubId": "366",
+      "sourceClubName": "Real Valladolid CF",
+      "sourceLastSeason": 2024,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 102206,
+      "clubName": "Eibar",
+      "league": 1022,
+      "sourceClubId": "1533",
+      "sourceClubName": "SD Eibar",
+      "sourceLastSeason": 2020,
+      "score": 0.98,
+      "status": "stale"
+    },
+    {
+      "clubId": 102207,
+      "clubName": "Las Palmas",
+      "league": 1022,
+      "sourceClubId": "472",
+      "sourceClubName": "UD Las Palmas",
+      "sourceLastSeason": 2024,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 102208,
+      "clubName": "Málaga",
+      "league": 1022,
+      "sourceClubId": "1084",
+      "sourceClubName": "Málaga CF",
+      "sourceLastSeason": 2017,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 102209,
+      "clubName": "Albacete Balompié",
+      "league": 1022,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102210,
+      "clubName": "Almería",
+      "league": 1022,
+      "sourceClubId": "3302",
+      "sourceClubName": "UD Almería",
+      "sourceLastSeason": 2023,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 102211,
+      "clubName": "Córdoba",
+      "league": 1022,
+      "sourceClubId": "993",
+      "sourceClubName": "Córdoba CF",
+      "sourceLastSeason": 2014,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 102212,
+      "clubName": "Huesca",
+      "league": 1022,
+      "sourceClubId": "5358",
+      "sourceClubName": "SD Huesca",
+      "sourceLastSeason": 2020,
+      "score": 0.98,
+      "status": "stale"
+    },
+    {
+      "clubId": 102213,
+      "clubName": "Cádiz",
+      "league": 1022,
+      "sourceClubId": "2687",
+      "sourceClubName": "Cádiz CF",
+      "sourceLastSeason": 2023,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 102214,
+      "clubName": "Burgos",
+      "league": 1022,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102215,
+      "clubName": "Cultural Leonesa",
+      "league": 1022,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102216,
+      "clubName": "FC Andorra",
+      "league": 1022,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102217,
+      "clubName": "Leganés",
+      "league": 1022,
+      "sourceClubId": "1244",
+      "sourceClubName": "CD Leganés",
+      "sourceLastSeason": 2024,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 102218,
+      "clubName": "Mirandés",
+      "league": 1022,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102219,
+      "clubName": "Castellón",
+      "league": 1022,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102220,
+      "clubName": "Granada",
+      "league": 1022,
+      "sourceClubId": "16795",
+      "sourceClubName": "Granada CF",
+      "sourceLastSeason": 2023,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 102301,
+      "clubName": "Guadalajara",
+      "league": 1023,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102302,
+      "clubName": "Rayo Majadahonda",
+      "league": 1023,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102303,
+      "clubName": "Real Madrid II",
+      "league": 1023,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102304,
+      "clubName": "Lugo",
+      "league": 1023,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102305,
+      "clubName": "Real Sociedad II",
+      "league": 1023,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102306,
+      "clubName": "Real Unión",
+      "league": 1023,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102307,
+      "clubName": "FC Cartagena",
+      "league": 1023,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102308,
+      "clubName": "Reus Deportiu",
+      "league": 1023,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102309,
+      "clubName": "Barcelona II",
+      "league": 1023,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102310,
+      "clubName": "Sevilla II",
+      "league": 1023,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102311,
+      "clubName": "Athletic Club II",
+      "league": 1023,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102312,
+      "clubName": "Alcoyano",
+      "league": 1023,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102313,
+      "clubName": "UCAM Murcia",
+      "league": 1023,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102314,
+      "clubName": "UD Ibiza",
+      "league": 1023,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102315,
+      "clubName": "Vecindario",
+      "league": 1023,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102316,
+      "clubName": "Fuenlabrada",
+      "league": 1023,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102317,
+      "clubName": "CD Covadonga",
+      "league": 1023,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102318,
+      "clubName": "Marino Luanco",
+      "league": 1023,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102319,
+      "clubName": "Union Langreo",
+      "league": 1023,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 102320,
+      "clubName": "Ourense",
+      "league": 1023,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103101,
+      "clubName": "Atalanta",
+      "league": 1031,
+      "sourceClubId": "800",
+      "sourceClubName": "Atalanta BC",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 103102,
+      "clubName": "Inter",
+      "league": 1031,
+      "sourceClubId": "46",
+      "sourceClubName": "Inter Milan",
+      "sourceLastSeason": 2025,
+      "score": 0.98,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 103103,
+      "clubName": "Juventus",
+      "league": 1031,
+      "sourceClubId": "506",
+      "sourceClubName": "Juventus FC",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 103104,
+      "clubName": "Lazio",
+      "league": 1031,
+      "sourceClubId": "398",
+      "sourceClubName": "Società Sportiva Lazio S.p.A.",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 103105,
+      "clubName": "AC Milan",
+      "league": 1031,
+      "sourceClubId": "5",
+      "sourceClubName": "AC Milan",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 103106,
+      "clubName": "Napoli",
+      "league": 1031,
+      "sourceClubId": "6195",
+      "sourceClubName": "SSC Napoli",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 103107,
+      "clubName": "Parma",
+      "league": 1031,
+      "sourceClubId": "130",
+      "sourceClubName": "Parma Calcio 1913",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 103108,
+      "clubName": "Roma",
+      "league": 1031,
+      "sourceClubId": "12",
+      "sourceClubName": "Associazione Sportiva Roma",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 103109,
+      "clubName": "Torino",
+      "league": 1031,
+      "sourceClubId": "416",
+      "sourceClubName": "Torino FC",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 103110,
+      "clubName": "Udinese",
+      "league": 1031,
+      "sourceClubId": "410",
+      "sourceClubName": "Udinese Calcio",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 103111,
+      "clubName": "Bologna",
+      "league": 1031,
+      "sourceClubId": "1025",
+      "sourceClubName": "Bologna Football Club 1909",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 103112,
+      "clubName": "Hellas Verona",
+      "league": 1031,
+      "sourceClubId": "276",
+      "sourceClubName": "Hellas Verona",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 103113,
+      "clubName": "Lecce",
+      "league": 1031,
+      "sourceClubId": "1005",
+      "sourceClubName": "US Lecce",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 103114,
+      "clubName": "Como",
+      "league": 1031,
+      "sourceClubId": "1047",
+      "sourceClubName": "Como 1907",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 103115,
+      "clubName": "Cagliari",
+      "league": 1031,
+      "sourceClubId": "1390",
+      "sourceClubName": "Cagliari Calcio",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 103116,
+      "clubName": "Fiorentina",
+      "league": 1031,
+      "sourceClubId": "430",
+      "sourceClubName": "ACF Fiorentina",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 103117,
+      "clubName": "Genoa",
+      "league": 1031,
+      "sourceClubId": "252",
+      "sourceClubName": "Genoa CFC",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 103118,
+      "clubName": "Pisa",
+      "league": 1031,
+      "sourceClubId": "4172",
+      "sourceClubName": "Pisa Sporting Club",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 103119,
+      "clubName": "Cremonese",
+      "league": 1031,
+      "sourceClubId": "2239",
+      "sourceClubName": "US Cremonese",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 103120,
+      "clubName": "Sassuolo",
+      "league": 1031,
+      "sourceClubId": "6574",
+      "sourceClubName": "US Sassuolo",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 103201,
+      "clubName": "Pescara",
+      "league": 1032,
+      "sourceClubId": "2921",
+      "sourceClubName": "Delfino Pescara 1936",
+      "sourceLastSeason": 2016,
+      "score": 0.98,
+      "status": "stale"
+    },
+    {
+      "clubId": 103202,
+      "clubName": "Venezia",
+      "league": 1032,
+      "sourceClubId": "607",
+      "sourceClubName": "Venezia FC",
+      "sourceLastSeason": 2024,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 103203,
+      "clubName": "Modena",
+      "league": 1032,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103204,
+      "clubName": "Empoli",
+      "league": 1032,
+      "sourceClubId": "749",
+      "sourceClubName": "FC Empoli",
+      "sourceLastSeason": 2024,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 103205,
+      "clubName": "Sampdoria",
+      "league": 1032,
+      "sourceClubId": "1038",
+      "sourceClubName": "UC Sampdoria",
+      "sourceLastSeason": 2022,
+      "score": 0.98,
+      "status": "stale"
+    },
+    {
+      "clubId": 103206,
+      "clubName": "Palermo",
+      "league": 1032,
+      "sourceClubId": "458",
+      "sourceClubName": "Palermo FC",
+      "sourceLastSeason": 2016,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 103207,
+      "clubName": "Bari",
+      "league": 1032,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103208,
+      "clubName": "Avellino",
+      "league": 1032,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103209,
+      "clubName": "Reggiana",
+      "league": 1032,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103210,
+      "clubName": "Spezia",
+      "league": 1032,
+      "sourceClubId": "3522",
+      "sourceClubName": "Spezia Calcio",
+      "sourceLastSeason": 2022,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 103211,
+      "clubName": "Catanzaro",
+      "league": 1032,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103212,
+      "clubName": "파도바",
+      "league": 1032,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103213,
+      "clubName": "Cesena",
+      "league": 1032,
+      "sourceClubId": "1429",
+      "sourceClubName": "Cesena FC",
+      "sourceLastSeason": 2014,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 103214,
+      "clubName": "Mantova",
+      "league": 1032,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103215,
+      "clubName": "Frosinone",
+      "league": 1032,
+      "sourceClubId": "8970",
+      "sourceClubName": "Frosinone Calcio",
+      "sourceLastSeason": 2023,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 103216,
+      "clubName": "Monza",
+      "league": 1032,
+      "sourceClubId": "2919",
+      "sourceClubName": "AC Monza",
+      "sourceLastSeason": 2024,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 103217,
+      "clubName": "Juve Stabia",
+      "league": 1032,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103218,
+      "clubName": "Carrarese",
+      "league": 1032,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103219,
+      "clubName": "Südtirol",
+      "league": 1032,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103220,
+      "clubName": "Virtus Entella",
+      "league": 1032,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103301,
+      "clubName": "Ravenna",
+      "league": 1033,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103302,
+      "clubName": "Crotone",
+      "league": 1033,
+      "sourceClubId": "4083",
+      "sourceClubName": "FC Crotone",
+      "sourceLastSeason": 2020,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 103303,
+      "clubName": "Virtus Lanciano",
+      "league": 1033,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103304,
+      "clubName": "Benevento",
+      "league": 1033,
+      "sourceClubId": "4171",
+      "sourceClubName": "Benevento Calcio",
+      "sourceLastSeason": 2020,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 103305,
+      "clubName": "Gallipoli",
+      "league": 1033,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103306,
+      "clubName": "Juve Stabia",
+      "league": 1033,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103307,
+      "clubName": "Foggia",
+      "league": 1033,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103308,
+      "clubName": "Novara",
+      "league": 1033,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103309,
+      "clubName": "Portosummaga",
+      "league": 1033,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103310,
+      "clubName": "Gubbio",
+      "league": 1033,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103311,
+      "clubName": "Nocerina",
+      "league": 1033,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103312,
+      "clubName": "Pro Vercelli",
+      "league": 1033,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103313,
+      "clubName": "Carpi",
+      "league": 1033,
+      "sourceClubId": "4102",
+      "sourceClubName": "AC Carpi",
+      "sourceLastSeason": 2015,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 103314,
+      "clubName": "Trapani",
+      "league": 1033,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103315,
+      "clubName": "Latina",
+      "league": 1033,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103316,
+      "clubName": "Rimini",
+      "league": 1033,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103317,
+      "clubName": "SPAL",
+      "league": 1033,
+      "sourceClubId": "2722",
+      "sourceClubName": "SPAL",
+      "sourceLastSeason": 2019,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 103318,
+      "clubName": "Vicenza",
+      "league": 1033,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103319,
+      "clubName": "Renate",
+      "league": 1033,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 103320,
+      "clubName": "Pordenone",
+      "league": 1033,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104101,
+      "clubName": "Bayern München",
+      "league": 1041,
+      "sourceClubId": "27",
+      "sourceClubName": "Bayern Munich",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 104102,
+      "clubName": "Dortmund",
+      "league": 1041,
+      "sourceClubId": "16",
+      "sourceClubName": "Borussia Dortmund",
+      "sourceLastSeason": 2025,
+      "score": 0.98,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 104103,
+      "clubName": "Mönchengladbach",
+      "league": 1041,
+      "sourceClubId": "18",
+      "sourceClubName": "Borussia Mönchengladbach",
+      "sourceLastSeason": 2025,
+      "score": 0.98,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 104104,
+      "clubName": "Freiburg",
+      "league": 1041,
+      "sourceClubId": "60",
+      "sourceClubName": "SC Freiburg",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 29
+    },
+    {
+      "clubId": 104105,
+      "clubName": "Hamburger SV",
+      "league": 1041,
+      "sourceClubId": "41",
+      "sourceClubName": "Hamburger SV",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 104106,
+      "clubName": "Köln",
+      "league": 1041,
+      "sourceClubId": "3",
+      "sourceClubName": "1.FC Köln",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 104107,
+      "clubName": "Leverkusen",
+      "league": 1041,
+      "sourceClubId": "15",
+      "sourceClubName": "Bayer 04 Leverkusen",
+      "sourceLastSeason": 2025,
+      "score": 0.98,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 104108,
+      "clubName": "Stuttgart",
+      "league": 1041,
+      "sourceClubId": "79",
+      "sourceClubName": "VfB Stuttgart",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 104109,
+      "clubName": "Werder Bremen",
+      "league": 1041,
+      "sourceClubId": "86",
+      "sourceClubName": "SV Werder Bremen",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 104110,
+      "clubName": "Mainz",
+      "league": 1041,
+      "sourceClubId": "39",
+      "sourceClubName": "1.FSV Mainz 05",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 27
+    },
+    {
+      "clubId": 104111,
+      "clubName": "Wolfsburg",
+      "league": 1041,
+      "sourceClubId": "82",
+      "sourceClubName": "VfL Wolfsburg",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 104112,
+      "clubName": "Frankfurt",
+      "league": 1041,
+      "sourceClubId": "24",
+      "sourceClubName": "Eintracht Frankfurt",
+      "sourceLastSeason": 2025,
+      "score": 0.98,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 104113,
+      "clubName": "Union Berlin",
+      "league": 1041,
+      "sourceClubId": "89",
+      "sourceClubName": "1.FC Union Berlin",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 104114,
+      "clubName": "Hoffenheim",
+      "league": 1041,
+      "sourceClubId": "533",
+      "sourceClubName": "TSG 1899 Hoffenheim",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 104115,
+      "clubName": "Augsburg",
+      "league": 1041,
+      "sourceClubId": "167",
+      "sourceClubName": "FC Augsburg",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 104116,
+      "clubName": "St. Pauli",
+      "league": 1041,
+      "sourceClubId": "35",
+      "sourceClubName": "FC St. Pauli",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 104117,
+      "clubName": "Heidenheim",
+      "league": 1041,
+      "sourceClubId": "2036",
+      "sourceClubName": "1. Fußballclub Heidenheim 1846",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 104118,
+      "clubName": "RB Leipzig",
+      "league": 1041,
+      "sourceClubId": "23826",
+      "sourceClubName": "RB Leipzig",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 104119,
+      "clubName": "Kaiserslautern",
+      "league": 1041,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104120,
+      "clubName": "Schalke 04",
+      "league": 1041,
+      "sourceClubId": "33",
+      "sourceClubName": "FC Schalke 04",
+      "sourceLastSeason": 2022,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 104201,
+      "clubName": "Bielefeld",
+      "league": 1042,
+      "sourceClubId": "10",
+      "sourceClubName": "Arminia Bielefeld",
+      "sourceLastSeason": 2021,
+      "score": 0.98,
+      "status": "stale"
+    },
+    {
+      "clubId": 104202,
+      "clubName": "Bochum",
+      "league": 1042,
+      "sourceClubId": "80",
+      "sourceClubName": "VfL Bochum",
+      "sourceLastSeason": 2024,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 104203,
+      "clubName": "SpVgg Greuther Fürth",
+      "league": 1042,
+      "sourceClubId": "65",
+      "sourceClubName": "SpVgg Greuther Fürth",
+      "sourceLastSeason": 2021,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 104204,
+      "clubName": "Hertha BSC",
+      "league": 1042,
+      "sourceClubId": "44",
+      "sourceClubName": "Hertha BSC",
+      "sourceLastSeason": 2022,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 104205,
+      "clubName": "Nürnberg",
+      "league": 1042,
+      "sourceClubId": "4",
+      "sourceClubName": "1.FC Nuremberg",
+      "sourceLastSeason": 2018,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 104206,
+      "clubName": "Hannover 96",
+      "league": 1042,
+      "sourceClubId": "42",
+      "sourceClubName": "Hannover 96",
+      "sourceLastSeason": 2018,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 104207,
+      "clubName": "Dynamo Dresden",
+      "league": 1042,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104208,
+      "clubName": "Preußen Münster",
+      "league": 1042,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104209,
+      "clubName": "Holstein Kiel",
+      "league": 1042,
+      "sourceClubId": "269",
+      "sourceClubName": "Holstein Kiel",
+      "sourceLastSeason": 2024,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 104210,
+      "clubName": "Elversberg",
+      "league": 1042,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104211,
+      "clubName": "Karlsruher SC",
+      "league": 1042,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104212,
+      "clubName": "Paderborn",
+      "league": 1042,
+      "sourceClubId": "127",
+      "sourceClubName": "SC Paderborn 07",
+      "sourceLastSeason": 2019,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 104213,
+      "clubName": "Eintracht Braunschweig",
+      "league": 1042,
+      "sourceClubId": "23",
+      "sourceClubName": "Eintracht Braunschweig",
+      "sourceLastSeason": 2013,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 104214,
+      "clubName": "Darmstadt 98",
+      "league": 1042,
+      "sourceClubId": "105",
+      "sourceClubName": "SV Darmstadt 98",
+      "sourceLastSeason": 2023,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 104215,
+      "clubName": "Magdeburg",
+      "league": 1042,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104216,
+      "clubName": "Fortuna Düsseldorf",
+      "league": 1042,
+      "sourceClubId": "38",
+      "sourceClubName": "Fortuna Düsseldorf",
+      "sourceLastSeason": 2019,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 104217,
+      "clubName": "Wehen Wiesbaden",
+      "league": 1042,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104218,
+      "clubName": "Erzgebirge Aue",
+      "league": 1042,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104219,
+      "clubName": "Viktoria Köln",
+      "league": 1042,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104220,
+      "clubName": "Ulm",
+      "league": 1042,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104301,
+      "clubName": "Sandhausen",
+      "league": 1043,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104302,
+      "clubName": "Fortuna Köln",
+      "league": 1043,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104303,
+      "clubName": "Bayreuth",
+      "league": 1043,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104304,
+      "clubName": "Würzburger Kickers",
+      "league": 1043,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104305,
+      "clubName": "Hallescher FC",
+      "league": 1043,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104306,
+      "clubName": "Waldhof Mannheim",
+      "league": 1043,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104307,
+      "clubName": "VfB Oldenburg",
+      "league": 1043,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104308,
+      "clubName": "Carl Zeiss Jena",
+      "league": 1043,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104309,
+      "clubName": "Zwickau",
+      "league": 1043,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104310,
+      "clubName": "Meppen",
+      "league": 1043,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104311,
+      "clubName": "Koblenz",
+      "league": 1043,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104312,
+      "clubName": "Borussia Dortmund II",
+      "league": 1043,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104313,
+      "clubName": "Havelse",
+      "league": 1043,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104314,
+      "clubName": "Bayern München II",
+      "league": 1043,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104315,
+      "clubName": "Freiburg II",
+      "league": 1043,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104316,
+      "clubName": "Werder Bremen II",
+      "league": 1043,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104317,
+      "clubName": "Sportfreunde Lotte",
+      "league": 1043,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104318,
+      "clubName": "Ingolstadt",
+      "league": 1043,
+      "sourceClubId": "4795",
+      "sourceClubName": "FC Ingolstadt 04",
+      "sourceLastSeason": 2016,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 104319,
+      "clubName": "Sonnenhof Großaspach",
+      "league": 1043,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 104320,
+      "clubName": "Türkgücü-Ataspor",
+      "league": 1043,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105101,
+      "clubName": "Auxerre",
+      "league": 1051,
+      "sourceClubId": "290",
+      "sourceClubName": "AJ Auxerre",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 105102,
+      "clubName": "Lens",
+      "league": 1051,
+      "sourceClubId": "826",
+      "sourceClubName": "RC Lens",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 105103,
+      "clubName": "Lille",
+      "league": 1051,
+      "sourceClubId": "1082",
+      "sourceClubName": "LOSC Lille",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 105104,
+      "clubName": "Olympique Lyonnais",
+      "league": 1051,
+      "sourceClubId": "1041",
+      "sourceClubName": "Olympique Lyon",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 105105,
+      "clubName": "Metz",
+      "league": 1051,
+      "sourceClubId": "347",
+      "sourceClubName": "FC Metz",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 105106,
+      "clubName": "AS Monaco",
+      "league": 1051,
+      "sourceClubId": "162",
+      "sourceClubName": "AS Monaco",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 26
+    },
+    {
+      "clubId": 105107,
+      "clubName": "Nantes",
+      "league": 1051,
+      "sourceClubId": "995",
+      "sourceClubName": "FC Nantes",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 105108,
+      "clubName": "Nice",
+      "league": 1051,
+      "sourceClubId": "417",
+      "sourceClubName": "OGC Nice",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 105109,
+      "clubName": "Paris Saint-Germain",
+      "league": 1051,
+      "sourceClubId": "583",
+      "sourceClubName": "Paris Saint-Germain",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 105110,
+      "clubName": "Rennais",
+      "league": 1051,
+      "sourceClubId": "273",
+      "sourceClubName": "Stade Rennais FC",
+      "sourceLastSeason": 2025,
+      "score": 0.98,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 105111,
+      "clubName": "Strasbourg",
+      "league": 1051,
+      "sourceClubId": "667",
+      "sourceClubName": "RC Strasbourg Alsace",
+      "sourceLastSeason": 2025,
+      "score": 0.98,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 105112,
+      "clubName": "Lorient",
+      "league": 1051,
+      "sourceClubId": "1158",
+      "sourceClubName": "FC Lorient",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 105113,
+      "clubName": "Marseille",
+      "league": 1051,
+      "sourceClubId": "244",
+      "sourceClubName": "Olympique Marseille",
+      "sourceLastSeason": 2025,
+      "score": 0.98,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 105114,
+      "clubName": "Brestois",
+      "league": 1051,
+      "sourceClubId": "3911",
+      "sourceClubName": "Stade Brestois 29",
+      "sourceLastSeason": 2025,
+      "score": 0.98,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 105115,
+      "clubName": "Angers",
+      "league": 1051,
+      "sourceClubId": "1420",
+      "sourceClubName": "Angers SCO",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 105116,
+      "clubName": "Le Havre",
+      "league": 1051,
+      "sourceClubId": "738",
+      "sourceClubName": "Le Havre AC",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 105117,
+      "clubName": "Toulouse",
+      "league": 1051,
+      "sourceClubId": "415",
+      "sourceClubName": "FC Toulouse",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 105118,
+      "clubName": "Paris",
+      "league": 1051,
+      "sourceClubId": "10004",
+      "sourceClubName": "Paris FC",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 105119,
+      "clubName": "Bastia",
+      "league": 1051,
+      "sourceClubId": "595",
+      "sourceClubName": "SC Bastia",
+      "sourceLastSeason": 2016,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 105120,
+      "clubName": "Montpellier",
+      "league": 1051,
+      "sourceClubId": "969",
+      "sourceClubName": "Montpellier HSC",
+      "sourceLastSeason": 2024,
+      "score": 0.98,
+      "status": "stale"
+    },
+    {
+      "clubId": 105201,
+      "clubName": "Reims",
+      "league": 1052,
+      "sourceClubId": "1421",
+      "sourceClubName": "Stade Reims",
+      "sourceLastSeason": 2024,
+      "score": 0.98,
+      "status": "stale"
+    },
+    {
+      "clubId": 105202,
+      "clubName": "Le Mans",
+      "league": 1052,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105203,
+      "clubName": "Stade Lavallois MFC",
+      "league": 1052,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105204,
+      "clubName": "Clermont",
+      "league": 1052,
+      "sourceClubId": "3524",
+      "sourceClubName": "Clermont Foot 63",
+      "sourceLastSeason": 2023,
+      "score": 0.98,
+      "status": "stale"
+    },
+    {
+      "clubId": 105205,
+      "clubName": "Amiens SC",
+      "league": 1052,
+      "sourceClubId": "1416",
+      "sourceClubName": "Amiens SC",
+      "sourceLastSeason": 2019,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 105206,
+      "clubName": "Saint-Étienne",
+      "league": 1052,
+      "sourceClubId": "618",
+      "sourceClubName": "AS Saint-Étienne",
+      "sourceLastSeason": 2024,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 105207,
+      "clubName": "Nancy",
+      "league": 1052,
+      "sourceClubId": "1159",
+      "sourceClubName": "AS Nancy-Lorraine",
+      "sourceLastSeason": 2016,
+      "score": 0.98,
+      "status": "stale"
+    },
+    {
+      "clubId": 105208,
+      "clubName": "Pau",
+      "league": 1052,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105209,
+      "clubName": "Red Star",
+      "league": 1052,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105210,
+      "clubName": "Dunkerque",
+      "league": 1052,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105211,
+      "clubName": "Boulogne",
+      "league": 1052,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105212,
+      "clubName": "Rodez",
+      "league": 1052,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105213,
+      "clubName": "Annecy",
+      "league": 1052,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105214,
+      "clubName": "Troyes",
+      "league": 1052,
+      "sourceClubId": "1095",
+      "sourceClubName": "ESTAC Troyes",
+      "sourceLastSeason": 2022,
+      "score": 0.98,
+      "status": "stale"
+    },
+    {
+      "clubId": 105215,
+      "clubName": "Laval",
+      "league": 1052,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105216,
+      "clubName": "Grenoble Foot 38",
+      "league": 1052,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105217,
+      "clubName": "Valenciennes",
+      "league": 1052,
+      "sourceClubId": "1423",
+      "sourceClubName": "Valenciennes FC",
+      "sourceLastSeason": 2013,
+      "score": 1,
+      "status": "stale"
+    },
+    {
+      "clubId": 105218,
+      "clubName": "Quevilly Rouen",
+      "league": 1052,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105219,
+      "clubName": "Niort",
+      "league": 1052,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105220,
+      "clubName": "Concarneau",
+      "league": 1052,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105301,
+      "clubName": "Gazélec Ajaccio",
+      "league": 1053,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105302,
+      "clubName": "Le Puy",
+      "league": 1053,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105303,
+      "clubName": "Vannes",
+      "league": 1053,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105304,
+      "clubName": "Evian TG",
+      "league": 1053,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105305,
+      "clubName": "Nîmes",
+      "league": 1053,
+      "sourceClubId": "1160",
+      "sourceClubName": "Nîmes Olympique",
+      "sourceLastSeason": 2020,
+      "score": 0.98,
+      "status": "stale"
+    },
+    {
+      "clubId": 105306,
+      "clubName": "Arles",
+      "league": 1053,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105307,
+      "clubName": "Orléans",
+      "league": 1053,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105308,
+      "clubName": "CA Bastia",
+      "league": 1053,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105309,
+      "clubName": "Dijon",
+      "league": 1053,
+      "sourceClubId": "2969",
+      "sourceClubName": "Dijon FCO",
+      "sourceLastSeason": 2020,
+      "score": 0.98,
+      "status": "stale"
+    },
+    {
+      "clubId": 105310,
+      "clubName": "Triumphal Arch",
+      "league": 1053,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105311,
+      "clubName": "Béziers",
+      "league": 1053,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105312,
+      "clubName": "Sochaux",
+      "league": 1053,
+      "sourceClubId": "750",
+      "sourceClubName": "FC Sochaux-Montbéliard",
+      "sourceLastSeason": 2013,
+      "score": 0.98,
+      "status": "stale"
+    },
+    {
+      "clubId": 105313,
+      "clubName": "Bastia Borgo",
+      "league": 1053,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105314,
+      "clubName": "Bourg Peronnas",
+      "league": 1053,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105315,
+      "clubName": "Caen",
+      "league": 1053,
+      "sourceClubId": "1162",
+      "sourceClubName": "SM Caen",
+      "sourceLastSeason": 2018,
+      "score": 0.98,
+      "status": "stale"
+    },
+    {
+      "clubId": 105316,
+      "clubName": "Poissy AS",
+      "league": 1053,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105317,
+      "clubName": "St Pryve St Hilaire",
+      "league": 1053,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105318,
+      "clubName": "Briochin",
+      "league": 1053,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105319,
+      "clubName": "Fleury 91",
+      "league": 1053,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 105320,
+      "clubName": "Sete FC",
+      "league": 1053,
+      "status": "no-candidate"
+    },
+    {
+      "clubId": 106101,
+      "clubName": "FC Porto",
+      "league": 1061,
+      "sourceClubId": "720",
+      "sourceClubName": "FC Porto",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 106102,
+      "clubName": "S.L. Benfica",
+      "league": 1061,
+      "sourceClubId": "294",
+      "sourceClubName": "SL Benfica",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 106103,
+      "clubName": "Sporting Clube de Portugal",
+      "league": 1061,
+      "sourceClubId": "336",
+      "sourceClubName": "Sporting CP",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 107101,
+      "clubName": "Zenit St.Petersburg",
+      "league": 1071,
+      "sourceClubId": "964",
+      "sourceClubName": "AO FK Zenit Sankt-Peterburg",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 107102,
+      "clubName": "CSKA Moscow",
+      "league": 1071,
+      "sourceClubId": "2410",
+      "sourceClubName": "PFK CSKA Moskva",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 107103,
+      "clubName": "Spartak Moscow",
+      "league": 1071,
+      "sourceClubId": "232",
+      "sourceClubName": "FK Spartak Moskva",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 108101,
+      "clubName": "Ajax Amsterdam",
+      "league": 1081,
+      "sourceClubId": "610",
+      "sourceClubName": "Ajax Amsterdam",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 108102,
+      "clubName": "PSV Eindhoven",
+      "league": 1081,
+      "sourceClubId": "383",
+      "sourceClubName": "PSV Eindhoven",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 108103,
+      "clubName": "Feyenoord Rotterdam",
+      "league": 1081,
+      "sourceClubId": "234",
+      "sourceClubName": "Feyenoord Rotterdam",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 109101,
+      "clubName": "Club Brugge",
+      "league": 1091,
+      "sourceClubId": "2282",
+      "sourceClubName": "Club Brugge KV",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 109102,
+      "clubName": "Anderlecht",
+      "league": 1091,
+      "sourceClubId": "58",
+      "sourceClubName": "RSC Anderlecht",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 109103,
+      "clubName": "K.R.C. Genk",
+      "league": 1091,
+      "sourceClubId": "1184",
+      "sourceClubName": "KRC Genk",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 110001,
+      "clubName": "Red Bull Salzburg",
+      "league": 9001,
+      "sourceClubId": "409",
+      "sourceClubName": "Fußballclub Red Bull Salzburg",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 110002,
+      "clubName": "Rapid Wien",
+      "league": 9001,
+      "sourceClubId": "170",
+      "sourceClubName": "Rapid Vienna",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 110003,
+      "clubName": "LASK Linz",
+      "league": 9001,
+      "sourceClubId": "413",
+      "sourceClubName": "LASK",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 110004,
+      "clubName": "Crvena Zvezda Beograd",
+      "league": 9001,
+      "sourceClubId": "159",
+      "sourceClubName": "Red Star Belgrade",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 110005,
+      "clubName": "Steaua Bucharest",
+      "league": 9001,
+      "sourceClubId": "301",
+      "sourceClubName": "FCSB",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 110006,
+      "clubName": "Celtic",
+      "league": 9001,
+      "sourceClubId": "371",
+      "sourceClubName": "Celtic FC",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 110007,
+      "clubName": "Panathinaikos",
+      "league": 9001,
+      "sourceClubId": "265",
+      "sourceClubName": "Panathinaikos Athlitikos Omilos",
+      "sourceLastSeason": 2025,
+      "score": 0.98,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 110008,
+      "clubName": "Malmo FF",
+      "league": 9001,
+      "sourceClubId": "496",
+      "sourceClubName": "Malmö Fotbollförening",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 110009,
+      "clubName": "Legia Warszawa",
+      "league": 9001,
+      "sourceClubId": "255",
+      "sourceClubName": "Legia Warszawa",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 110010,
+      "clubName": "Sparta Praha",
+      "league": 9001,
+      "sourceClubId": "197",
+      "sourceClubName": "AC Sparta Prague",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 110011,
+      "clubName": "CSKA Sofia",
+      "league": 9001,
+      "status": "no-competition"
+    },
+    {
+      "clubId": 110012,
+      "clubName": "Zurich",
+      "league": 9001,
+      "sourceClubId": "260",
+      "sourceClubName": "FC Zürich",
+      "sourceLastSeason": 2025,
+      "score": 1,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 110013,
+      "clubName": "Lokomotiv Plovdiv",
+      "league": 9001,
+      "status": "no-competition"
+    },
+    {
+      "clubId": 110014,
+      "clubName": "Grasshoppers",
+      "league": 9001,
+      "sourceClubId": "504",
+      "sourceClubName": "Grasshopper Club Zurich",
+      "sourceLastSeason": 2025,
+      "score": 0.98,
+      "status": "imported",
+      "players": 30
+    },
+    {
+      "clubId": 110015,
+      "clubName": "FC Kingdom",
+      "league": 9001,
+      "status": "no-competition"
+    },
+    {
+      "clubId": 110016,
+      "clubName": "Worker Foot",
+      "league": 9001,
+      "status": "no-competition"
+    },
+    {
+      "clubId": 110017,
+      "clubName": "Ziko Zack",
+      "league": 9001,
+      "status": "no-competition"
+    },
+    {
+      "clubId": 110018,
+      "clubName": "Lodi Bull",
+      "league": 9001,
+      "status": "no-competition"
+    },
+    {
+      "clubId": 110019,
+      "clubName": "Club Addy",
+      "league": 9001,
+      "status": "no-competition"
+    },
+    {
+      "clubId": 110020,
+      "clubName": "Babuyo FC",
+      "league": 9001,
+      "status": "no-competition"
+    }
+  ]
+}

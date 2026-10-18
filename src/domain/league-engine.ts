@@ -72,6 +72,20 @@ export function clubPlayerOverall(clubStrength: number, seedValue: number): numb
   return clamp(Math.round(clubStrength + (Math.abs(seedValue) % 13) - 6), 40, 94);
 }
 
+// Age factor applied to market value (index = age, capped at both ends).
+const ABILITY_AGE_FACTOR: Record<number, number> = { 19: 0.55, 20: 0.6, 21: 0.7, 22: 0.8, 23: 0.9, 29: 1.15, 30: 1.35, 31: 1.6, 32: 1.9, 33: 2.3, 34: 2.8, 35: 3.8, 36: 4.4, 37: 5 };
+
+/**
+ * RECOVERY_INFERRED: market value rescaled toward current ability. Transfermarkt
+ * prices prospects for their potential and drops veterans fast, so a 34-year-old
+ * star would otherwise rank below an untested 17-year-old.
+ */
+export function abilityValue(marketValue: number | null | undefined, age: number): number {
+  if (!marketValue || marketValue <= 0) return 0;
+  const factor = age <= 19 ? ABILITY_AGE_FACTOR[19] : age >= 37 ? ABILITY_AGE_FACTOR[37] : ABILITY_AGE_FACTOR[age] ?? 1;
+  return marketValue * factor;
+}
+
 /**
  * RECOVERY_INFERRED: overall for a player imported from an external roster. Market
  * value only orders the squad inside the same ±6 band around club strength that the

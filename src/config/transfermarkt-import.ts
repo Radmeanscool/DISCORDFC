@@ -1,5 +1,6 @@
 import type { PlayerOverlay, PlayerOverlayClub } from './player-overlay.js';
 import { recoveryPositionGroup, type RecoveryClubRecord, type RecoveryPlayerRecord } from './recovery-data.js';
+import { abilityValue } from '../domain/league-engine.js';
 
 /**
  * Import logic for the CC0 transfermarkt-datasets dump
@@ -244,9 +245,9 @@ export function ageOn(dateOfBirth: string, asOf: Date): number | undefined {
 // takes 15 for the user's club), and the first 18 a matchday squad (opponents take 18).
 const SQUAD_TEMPLATE = ['GK', 'DF', 'DF', 'DF', 'DF', 'MF', 'MF', 'MF', 'FW', 'FW', 'MF', 'GK', 'DF', 'MF', 'FW', 'DF', 'MF', 'FW'] as const;
 
-/** Orders a squad so every prefix the game slices is balanced, most valuable players first. */
+/** Orders a squad so every prefix the game slices is balanced, strongest (age-adjusted value) first. */
 export function orderSquad(records: RecoveryPlayerRecord[], max: number): RecoveryPlayerRecord[] {
-  const value = (record: RecoveryPlayerRecord) => record.marketValueEur ?? 0;
+  const value = (record: RecoveryPlayerRecord) => abilityValue(record.marketValueEur, record.initAge);
   const remaining = [...records].sort((a, b) => value(b) - value(a) || a.nameEn.localeCompare(b.nameEn));
   const ordered: RecoveryPlayerRecord[] = [];
   for (const group of SQUAD_TEMPLATE) {

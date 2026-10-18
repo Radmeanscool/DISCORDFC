@@ -3,7 +3,7 @@ import test from 'node:test';
 import { applyPlayerOverlay, type PlayerOverlay } from '../src/config/player-overlay.js';
 import { RECOVERY_CLUBS, recoveryPositionGroup, type RecoveryPlayerRecord } from '../src/config/recovery-data.js';
 import { ageOn, buildPlayerOverlay, EXTERNAL_PROVENANCE, matchClubs, nameTokens, orderSquad, parseCsv, positionCodeFor, type TransfermarktClub } from '../src/config/transfermarkt-import.js';
-import { clubPlayerOverallFromValue } from '../src/domain/league-engine.js';
+import { abilityValue, clubPlayerOverallFromValue } from '../src/domain/league-engine.js';
 
 // Fixture rows below imitate the transfermarkt-datasets layout; names and values are synthetic.
 
@@ -184,6 +184,12 @@ test('applyPlayerOverlay swaps covered rosters and leaves every other club alone
   assert.equal(applied.players.filter((player) => player.clubId === 3).length, 2);
   assert.ok(!applied.players.some((player) => player.clubId === 99));
   assert.equal(applyPlayerOverlay(base, undefined, new Set([1, 2, 3])).players, base);
+});
+
+test('age adjustment keeps veteran stars above untested prospects', () => {
+  assert.ok(abilityValue(22_000_000, 34) > abilityValue(30_000_000, 17), 'a 34-year-old at 22m outranks a 17-year-old at 30m');
+  assert.equal(abilityValue(50_000_000, 26), 50_000_000, 'prime-age values are unchanged');
+  assert.equal(abilityValue(null, 30), 0);
 });
 
 test('market value only orders players inside the club strength band', () => {
