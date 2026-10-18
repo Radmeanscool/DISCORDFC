@@ -8,5 +8,6 @@ data/*.json
 !data/recovery/*.json
 data/*.tmp
 data/*.lock
+data/external/transfermarkt/
 *.log
 .DS_Store

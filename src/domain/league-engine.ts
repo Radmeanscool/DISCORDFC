@@ -72,6 +72,19 @@ export function clubPlayerOverall(clubStrength: number, seedValue: number): numb
   return clamp(Math.round(clubStrength + (Math.abs(seedValue) % 13) - 6), 40, 94);
 }
 
+/**
+ * RECOVERY_INFERRED: overall for a player imported from an external roster. Market
+ * value only orders the squad inside the same ±6 band around club strength that the
+ * APK rows use, so real squads change who the stars are, not how strong clubs are.
+ * The median comes from the matchday squad; players without a value count as fringe
+ * (a quarter of the median), and a club without any values stays at its strength.
+ */
+export function clubPlayerOverallFromValue(clubStrength: number, marketValue: number | null | undefined, clubMedianValue: number): number {
+  if (clubMedianValue <= 0) return clamp(Math.round(clubStrength), 40, 94);
+  const ratio = marketValue && marketValue > 0 ? marketValue / clubMedianValue : 0.25;
+  return clamp(Math.round(clubStrength + clamp(Math.log2(ratio) * 2.5, -6, 6)), 40, 94);
+}
+
 export function resolveClubLeagueId(club: Pick<ClubState, 'leagueId' | 'officialId' | 'name'>): number | undefined {
   if (club.leagueId !== undefined) return club.leagueId;
   const record = RECOVERY_CLUBS.find((item) => item.id === club.officialId) ?? officialClubByName(club.name);

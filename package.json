@@ -11,7 +11,8 @@
     "test": "tsx --test test/**/*.test.ts",
     "commands:register": "tsx src/discord/register-commands.ts",
     "db:migrate": "tsx src/storage/migrate.ts",
-    "db:import-json": "tsx src/storage/import-json.ts"
+    "db:import-json": "tsx src/storage/import-json.ts",
+    "data:import-players": "tsx tools/import-player-data.ts"
   },
   "engines": {
     "node": ">=22"

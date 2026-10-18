@@ -1,11 +1,12 @@
 import { getRating, MathRandomSource, type RandomSource } from './engine.js';
 import { FORMATIONS, TACTICS, type ClubFixture, type ClubMatchResult, type ClubMatchStats, type ClubPlayer, type ClubState, type CoachCareerState, type FormationId, type MatchOutcome, type PlayerProfile, type Position, type TacticId } from './types.js';
 import { SEED_CLUB_NAMES, SEED_PLAYER_NAMES, SEED_ROSTER_POSITIONS } from '../config/seed-data.js';
-import { RECOVERY_CLUBS, RECOVERY_PLAYERS_BY_CLUB, type RecoveryPlayerRecord } from '../config/recovery-data.js';
+import { RECOVERY_CLUB_BY_ID, RECOVERY_CLUBS, RECOVERY_PLAYERS_BY_CLUB, recoveryPositionGroup, type RecoveryPlayerRecord } from '../config/recovery-data.js';
 import { GAME_BALANCE } from '../config/game-balance.js';
 import {
   clubParticipants,
   clubPlayerOverall,
+  clubPlayerOverallFromValue,
   clubStrengthByName,
   completeLeagueStandings,
   expectedGoals,
@@ -100,32 +101,50 @@ export function syncUserClubPlayer(profile: PlayerProfile): void {
   entry.appearances = profile.career.appearances;
 }
 
-function recoveryPosition(code: number): Position {
-  if (code === 13) return 'GK';
-  if (code >= 10 && code <= 12) return 'DF';
-  if (code >= 5 && code <= 9) return 'MF';
-  return 'FW';
+/** Official players an opponent fields; imported squads are ordered so this prefix is balanced. */
+const OPPONENT_SQUAD_SIZE = 18;
+const clubMedianValues = new Map<number, number>();
+
+// Median market value of the matchday squad, so the players who actually play are
+// centred on club strength like the APK rows and reserves fall below it.
+function clubMedianValue(clubId: number): number {
+  let median = clubMedianValues.get(clubId);
+  if (median === undefined) {
+    const values = (RECOVERY_PLAYERS_BY_CLUB.get(clubId) ?? []).slice(0, OPPONENT_SQUAD_SIZE).map((record) => record.marketValueEur ?? 0).filter((value) => value > 0).sort((a, b) => a - b);
+    median = values.length ? values[Math.floor(values.length / 2)] : 0;
+    clubMedianValues.set(clubId, median);
+  }
+  return median;
 }
 
 // The fixed-field decode of cfg_player is partial: price is 37 for every row and
 // initAge spans 12–60. Overall is therefore anchored to the club's recovered
 // grade/prestige, with normalValue only used as a stable per-player offset.
+// Rows from the external roster overlay rank by market value inside the same band.
 function recoveryOverall(record: RecoveryPlayerRecord): number {
-  const club = RECOVERY_CLUBS.find((item) => item.id === record.clubId);
+  const club = RECOVERY_CLUB_BY_ID.get(record.clubId);
   const strength = club ? officialClubStrength(club) : 60;
+  if (record.externalId) return clubPlayerOverallFromValue(strength, record.marketValueEur, clubMedianValue(record.clubId));
   return clubPlayerOverall(strength, record.normalValue);
 }
 
 function recoveryAge(record: RecoveryPlayerRecord): number {
+  // External rows derive initAge from a real birth date, so veterans past 38 are kept.
+  if (record.externalId && record.initAge >= 15 && record.initAge <= 45) return record.initAge;
   if (record.initAge >= 16 && record.initAge <= 38) return record.initAge;
   return 18 + (stableHash(`${record.nameEn}:${record.num}:${record.clubId}`) % 17);
 }
 
+function recoveryPlayerId(record: RecoveryPlayerRecord): string {
+  if (record.externalId) return `recovery-${record.clubId}-${record.externalId.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+  return `recovery-${record.clubId}-${record.num}-${record.nameEn.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+}
+
 function recoveryClubPlayer(record: RecoveryPlayerRecord, now: Date): ClubPlayer {
   const overall = recoveryOverall(record);
-  const position = recoveryPosition(record.positionCode);
+  const position = recoveryPositionGroup(record.positionCode);
   return {
-    id: `recovery-${record.clubId}-${record.num}-${record.nameEn.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+    id: recoveryPlayerId(record),
     name: record.nameEn,
     position,
     age: recoveryAge(record),
@@ -207,7 +226,7 @@ function ensureRosterDepth(rosterInput: ClubPlayer[], base: number, rng: RandomS
 }
 
 function buildOpponentRoster(officialClub: typeof RECOVERY_CLUBS[number] | undefined, strength: number, rng: RandomSource, now: Date): ClubPlayer[] {
-  const officialPlayers = officialClub ? (RECOVERY_PLAYERS_BY_CLUB.get(officialClub.id) ?? []).slice(0, 18).map((record) => recoveryClubPlayer(record, now)) : [];
+  const officialPlayers = officialClub ? (RECOVERY_PLAYERS_BY_CLUB.get(officialClub.id) ?? []).slice(0, OPPONENT_SQUAD_SIZE).map((record) => recoveryClubPlayer(record, now)) : [];
   return ensureRosterDepth(officialPlayers, strength, rng, now);
 }
 

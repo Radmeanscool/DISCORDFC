@@ -50,7 +50,7 @@ Setelah `/play`, Game Home menyediakan tombol **Player Mode**, **Coach Mode**, d
 
 ## Data client 2.8.0
 
-Audit client terbaru berhasil memparse **332 official club record** dari `cfg_club_202603` dan **5.133 player record fixed-field** dari payload `cfg_player_202603`. Data ini tersimpan di `data/recovery/` dengan provenance dan dimuat oleh `src/config/recovery-data.ts`. Profile baru memulai karier di klub starter grade rendah yang dipilih deterministik dari league 1011; klub besar seperti Arsenal dibuka melalui jalur transfer Club Office. Roster klub memakai nama player client sesuai official club ID. Position code mengikuti dump: FW 1–5, MF 6–9, DF 10–12, GK 13.
+Audit client terbaru berhasil memparse **332 official club record** dari `cfg_club_202603` dan **5.133 player record fixed-field** dari payload `cfg_player_202603`. Data ini tersimpan di `data/recovery/` dengan provenance dan dimuat oleh `src/config/recovery-data.ts`. Profile baru memulai karier di klub starter grade rendah yang dipilih deterministik dari league 1011; klub besar seperti Arsenal dibuka melalui jalur transfer Club Office. Roster klub memakai nama player client sesuai official club ID. Position code dipetakan runtime sebagai FW 1–4, MF 5–9, DF 10–12, GK 13.
 
 Field ability dictionary variable-length belum dipaksakan menjadi overall resmi. Overall runtime masih diberi label `RECOVERY_INFERRED`, sedangkan name, club ID, league, position, age, salary, prestige, grade, formations, dan tactics yang diparse langsung diberi label `RECOVERY_VERIFIED`. Endpoint backend dan Remote Config tidak diaktifkan karena audit hanya mengonfirmasi dependency Firebase, bukan endpoint produksi.
 
@@ -121,6 +121,17 @@ Nilai gameplay yang masih bersifat sementara berada di `src/config/game-balance.
 Bot Discord membutuhkan proses yang berjalan terus-menerus. Komputer kantor/server yang sudah tersedia cocok untuk internal testing. Hosting Node.js managed atau VPS lebih cocok untuk operasi publik karena dapat menjalankan restart policy, database terpisah, monitoring, backup, dan secret management. Minimal production hardening yang masih direkomendasikan adalah backup PostgreSQL, TLS pada database managed, structured logging, error alerting, command audit log, dan pemisahan admin user ID dari source code.
 
 Command `/admin` dibatasi oleh native Discord `Manage Guild` permission dan `ADMIN_USER_IDS`. Rate limiter default membatasi satu user sampai 30 interaction per 60 detik pada satu proses (panel tombol butuh beberapa klik per aksi). Worker DM berjalan tiap `NOTIFICATION_INTERVAL_MS` (default 60 detik) di bawah lock maintenance yang sama sehingga dua instance tidak mengirim DM ganda; bot hanya bisa DM user yang berada di server yang sama dan tidak menutup DM. Command mutation user yang sama diserialisasi oleh per-user queue dan PostgreSQL menggunakan optimistic concurrency. Untuk deployment multi-instance, rate limiter dan queue perlu dipindahkan ke Redis atau database agar konsisten antar-instance.
+
+### Update roster dari database online (Transfermarkt, CC0)
+
+Decode `cfg_player` tidak lengkap: klub divisi satu rata-rata hanya punya 7–14 pemain (Liverpool 13 pemain, tanpa Salah atau Szoboszlai), harga selalu 37, dan usia 12–60. Roster bisa diperbarui dari dataset [transfermarkt-datasets](https://github.com/dcaribou/transfermarkt-datasets) (lisensi CC0, data terakhir per 6 Juli 2026 = skuad akhir musim 2025/26, sama dengan musim club list APK):
+
+```bash
+# unduh players.csv.gz + clubs.csv.gz ke data/external/transfermarkt/ (lihat data/external/README.md)
+pnpm data:import-players --snapshot 2026-07-06
+```
+
+Importer mencocokkan klub per liga (divisi satu EN/ES/IT/DE/FR, Portugal, Rusia, Belanda, Belgia, dan klub kontinental yang liganya tercakup), lalu menulis `data/external/player-overlay.json`. Loader mengganti roster klub yang tercocokkan dengan skuad asli (nama, posisi, usia dari tanggal lahir, nilai pasar); klub lain (divisi 2–3, klub fiktif) tetap memakai roster APK. Overall pemain impor diurutkan menurut nilai pasar di dalam band ±6 kekuatan klub yang sama dengan roster APK (`RECOVERY_INFERRED`), jadi balance antar-klub tidak berubah. Hapus file overlay atau set `PLAYER_OVERLAY_FILE=off` untuk kembali ke roster APK.
 
 ## Batasan parity dengan game asli
 

@@ -36,7 +36,7 @@ Game ini **bukan replika 1:1** Football Rising Star asli: formula server, live b
 - Durasi cedera, biaya treatment, trainer, sponsor
 - Valuasi transfer, gaji, syarat rating klub
 - Ruleset Versus (taktik, sponsor, scout, harga lelang)
-- Data roster recovered tidak lengkap (beberapa klub kekurangan pemain; diisi pemain sintetis sampai kedalaman minimum)
+- Data roster recovered tidak lengkap (beberapa klub kekurangan pemain; diisi pemain sintetis sampai kedalaman minimum). Roster klub divisi satu dan kontinental bisa diganti skuad asli lewat overlay Transfermarkt (bagian 7.10)
 
 ---
 
@@ -297,7 +297,7 @@ REGISTER_FALLBACK_COMMANDS=true pnpm commands:register    # + command operator
 
 | Command | Fungsi |
 |---|---|
-| `/admin action:stats` | Jumlah profil, Coach, club Versus, DM pending, mode persistence |
+| `/admin action:stats` | Jumlah profil, Coach, club Versus, DM pending, mode persistence, sumber data roster |
 | `/admin action:run-maintenance` | Menjalankan maintenance sekarang (memakai lock yang sama dengan worker) |
 
 ### 7.6 Worker dan parameter
@@ -347,6 +347,19 @@ Pastikan seluruh test lulus, audit PASS, backup database berhasil, `.env` tidak 
 | "Data berubah di proses lain" | Aksi bertabrakan dengan worker 3x berturut-turut; ulangi aksi |
 | Match tidak dapat dimainkan | Cek stage (event/EXP pending), cedera, skors |
 | Transfer gagal | Cek transfer window, rating minimal klub, dan saldo |
+
+### 7.10 Update roster pemain (Transfermarkt CC0)
+
+Roster APK untuk klub divisi satu hanya berisi rata-rata 7–14 pemain. Skuad asli bisa dimuat dari dataset CC0 [transfermarkt-datasets](https://github.com/dcaribou/transfermarkt-datasets) (data per 6 Juli 2026, musim 2025/26):
+
+```bash
+mkdir -p data/external/transfermarkt
+curl -fL -o data/external/transfermarkt/players.csv.gz https://pub-e682421888d945d684bcae8890b0ec20.r2.dev/data/players.csv.gz
+curl -fL -o data/external/transfermarkt/clubs.csv.gz https://pub-e682421888d945d684bcae8890b0ec20.r2.dev/data/clubs.csv.gz
+pnpm data:import-players --snapshot 2026-07-06
+```
+
+Periksa `data/external/player-import-report.json`, commit `player-overlay.json`, lalu restart bot. `/admin action:stats` menampilkan jumlah klub dan pemain dari overlay. Koreksi pencocokan klub ada di `data/external/club-map.json`; `PLAYER_OVERLAY_FILE=off` mengembalikan roster APK. Overlay hanya menyentuh roster klub resmi Player/Coach; Versus tetap memakai roster NPC-nya sendiri. Detail: [`data/external/README.md`](../data/external/README.md).
 
 ---
 
