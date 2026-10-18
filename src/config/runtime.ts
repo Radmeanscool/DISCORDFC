@@ -9,6 +9,8 @@ export type RuntimeConfig = {
   nodeEnv: string;
   adminUserIds: Set<string>;
   maintenanceIntervalMs: number;
+  /** How often the DM outbox is drained. */
+  notificationIntervalMs: number;
   rateLimitMax: number;
   rateLimitWindowMs: number;
 };
@@ -40,11 +42,13 @@ export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Runtime
   const intervalRaw = env.MAINTENANCE_INTERVAL_MS;
   const maintenanceIntervalMs = intervalRaw === undefined || intervalRaw.trim() === '' ? 15 * 60_000 : Number(intervalRaw);
   if (!Number.isInteger(maintenanceIntervalMs) || maintenanceIntervalMs < 1_000) throw new Error('MAINTENANCE_INTERVAL_MS harus integer >= 1000.');
-  const rateLimitMax = env.RATE_LIMIT_MAX === undefined || env.RATE_LIMIT_MAX.trim() === '' ? 12 : Number(env.RATE_LIMIT_MAX);
+  // Button-driven panels need several clicks per action (a lineup is ~10), so the default allows 30 per window.
+  const rateLimitMax = env.RATE_LIMIT_MAX === undefined || env.RATE_LIMIT_MAX.trim() === '' ? 30 : Number(env.RATE_LIMIT_MAX);
   const rateLimitWindowMs = env.RATE_LIMIT_WINDOW_MS === undefined || env.RATE_LIMIT_WINDOW_MS.trim() === '' ? 60_000 : Number(env.RATE_LIMIT_WINDOW_MS);
   if (!Number.isInteger(rateLimitMax) || rateLimitMax < 1) throw new Error('RATE_LIMIT_MAX harus integer >= 1.');
   if (!Number.isInteger(rateLimitWindowMs) || rateLimitWindowMs < 1_000) throw new Error('RATE_LIMIT_WINDOW_MS harus integer >= 1000.');
-  return { discordToken, discordClientId: env.DISCORD_CLIENT_ID?.trim() || undefined, discordGuildId: env.DISCORD_GUILD_ID?.trim() || undefined, databaseUrl, dataFile, nodeEnv, adminUserIds, maintenanceIntervalMs, rateLimitMax, rateLimitWindowMs };
+  const notificationIntervalMs = positiveInteger('NOTIFICATION_INTERVAL_MS', 60_000, 5_000, env);
+  return { discordToken, discordClientId: env.DISCORD_CLIENT_ID?.trim() || undefined, discordGuildId: env.DISCORD_GUILD_ID?.trim() || undefined, databaseUrl, dataFile, nodeEnv, adminUserIds, maintenanceIntervalMs, notificationIntervalMs, rateLimitMax, rateLimitWindowMs };
 }
 
 export function parsePositiveInteger(name: string, fallback: number, minimum: number, env: NodeJS.ProcessEnv = process.env): number {

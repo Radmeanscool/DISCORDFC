@@ -1,16 +1,14 @@
-import { ensureClubState } from './club-engine.js';
-import { createInitialProfile, MathRandomSource, type RandomSource } from './engine.js';
-import { ensureGameplayState } from './gameplay-engine.js';
-import { type ClubPlayer, type EconomyLedgerEntry, type ListingStatus, type MarketListing, type PlayerProfile } from './types.js';
-import { SEED_MARKET_PLAYERS } from '../config/seed-data.js';
-import { RECOVERY_PLAYERS, RECOVERY_CLUB_BY_ID } from '../config/recovery-data.js';
+import { ensureClubState, MINIMUM_ROSTER_DEPTH, recoveredMarketPlayer } from './club-engine.js';
+import { MathRandomSource, type RandomSource } from './engine.js';
+import { formatMoney } from './format.js';
+import { clubStrengthByName, isDomesticLeague, officialClubStrength } from './league-engine.js';
+import { RECOVERY_CLUBS, RECOVERY_PLAYERS } from '../config/recovery-data.js';
+import type { ClubPlayer, MarketListing, PlayerProfile } from './types.js';
+
+export { formatMoney } from './format.js';
 
 function clone<T>(value: T): T {
   return structuredClone(value);
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
 }
 
 function dayKey(date: Date): string {
@@ -44,7 +42,6 @@ export function claimDailyReward(profileInput: PlayerProfile, now = new Date()):
   profile.totalExp += exp;
   profile.level = Math.max(profile.level, Math.floor(profile.totalExp / 100) + 1);
   profile.updatedAt = now.toISOString();
-  profile.lastActionAt = now.toISOString();
   return { profile, amount, exp, streak: profile.daily.streak };
 }
 
@@ -55,106 +52,82 @@ export function claimDailyReward(profileInput: PlayerProfile, now = new Date()):
  * rows named `event` are ignored by the active Player lifecycle.
  */
 
-function marketPlayer(id: string, name: string, position: ClubPlayer['position'], overall: number, price: number, now: Date, originClubId?: number): MarketListing {
-  const stats = {
-    atk: clamp(overall + (position === 'FW' ? 7 : 0), 20, 99),
-    def: clamp(overall + (position === 'DF' || position === 'GK' ? 7 : 0), 20, 99),
-    speed: clamp(overall + (position === 'FW' || position === 'MF' ? 5 : 0), 20, 99),
-    power: clamp(overall + 1, 20, 99),
-    strength: clamp(overall + (position === 'DF' ? 5 : 0), 20, 99),
-    technique: clamp(overall + (position === 'MF' ? 7 : 0), 20, 99)
-  };
-  const player: ClubPlayer = {
-    id,
-    name,
-    position,
-    age: 18 + (overall % 14),
-    overall,
-    stats,
-    morale: 75,
-    hp: 100,
-    maxHp: 100,
-    salary: Math.round(price / 20),
-    contractUntil: new Date(now.getTime() + 365 * 86_400_000).toISOString(),
-    isUserPlayer: false,
-    goals: 0,
-    assists: 0,
-    appearances: 0
-  };
-  if (originClubId !== undefined) player.originClubId = originClubId;
-  return { id: `listing-${id}`, sellerUserId: 'system-market', player, price, status: 'OPEN', createdAt: now.toISOString() };
+/** Transfer value from ability and age (RECOVERY_INFERRED; the client price field decodes as a constant). */
+export function playerMarketValue(player: Pick<ClubPlayer, 'overall' | 'age'>): number {
+  return Math.round(player.overall * player.overall * 1.2 + Math.max(0, 28 - player.age) * 60);
 }
 
-function recoveryPosition(code: number): ClubPlayer['position'] {
-  if (code === 13) return 'GK';
-  if (code >= 10 && code <= 12) return 'DF';
-  if (code >= 5 && code <= 9) return 'MF';
-  return 'FW';
+export const COACH_MARKET_SELL_RATE = 0.65;
+const COACH_ROSTER_LIMIT = 32;
+const COACH_MARKET_SIZE = 10;
+
+function coachRoundsPlayed(profile: PlayerProfile): number {
+  return profile.coachClubState?.fixtures.filter((fixture) => fixture.played).length ?? 0;
 }
 
-function recoveryMarket(now: Date): MarketListing[] {
-  return RECOVERY_PLAYERS.slice(0, 24).map((record) => {
-    const position = recoveryPosition(record.positionCode);
-    const overall = clamp(52 + Math.abs(record.normalValue % 38), 45, 92);
-    const name = record.nameEn || record.nameCn || `Player ${record.num}`;
-    const listing = marketPlayer(`recovery-${record.clubId}-${record.num}`, name, position, overall, Math.max(100, record.price), now, record.clubId);
-    listing.player.age = record.initAge;
-    listing.player.contractUntil = new Date(now.getTime() + 365 * 86_400_000).toISOString();
-    return listing;
-  });
-}
-
-export function refreshMarket(profileInput: PlayerProfile, now = new Date(), force = false): PlayerProfile {
-  const profile = clone(profileInput);
-  const cooldownMs = 6 * 60 * 60 * 1_000;
-  if (!force && profile.market?.length && profile.marketUpdatedAt) {
-    const elapsed = now.getTime() - new Date(profile.marketUpdatedAt).getTime();
-    if (elapsed < cooldownMs) throw new Error(`Market baru dapat di-refresh lagi dalam ${Math.ceil((cooldownMs - elapsed) / 3_600_000)} jam.`);
+/**
+ * Coach Mode transfer list: recovered players from domestic clubs near the
+ * Coach club's level. One refresh per played round keeps it from being re-rolled freely.
+ */
+export function refreshCoachMarket(profileInput: PlayerProfile, now = new Date(), rng: RandomSource = new MathRandomSource(), force = false): PlayerProfile {
+  const profile = ensureClubState(profileInput, now, rng, 'coachClubState');
+  const club = profile.coachClubState!;
+  const round = coachRoundsPlayed(profile);
+  const season = profile.coach?.season ?? profile.league.season;
+  if (!force && profile.coachMarket && profile.coachMarket.season === season && profile.coachMarket.refreshedAtRound === round) {
+    throw new Error('Transfer list sudah diperbarui untuk round ini. Mainkan round berikutnya untuk daftar baru.');
   }
-  const recovered = recoveryMarket(now);
-  profile.market = recovered.length > 0 ? recovered : SEED_MARKET_PLAYERS.map((player) => marketPlayer(player.id, player.name, player.position, player.overall, player.price, now));
-  profile.marketUpdatedAt = now.toISOString();
+  const ownStrength = clubStrengthByName(club.name, club.leagueId);
+  const owned = new Set(club.roster.map((player) => player.id));
+  const nearbyClubs = new Set(RECOVERY_CLUBS.filter((item) => isDomesticLeague(item.league) && item.nameEn !== club.name && Math.abs(officialClubStrength(item) - ownStrength) <= 8).map((item) => item.id));
+  const pool = RECOVERY_PLAYERS.filter((record) => nearbyClubs.has(record.clubId));
+  const picks: MarketListing[] = [];
+  const used = new Set<string>();
+  for (let attempt = 0; attempt < 200 && picks.length < COACH_MARKET_SIZE && pool.length; attempt += 1) {
+    const record = pool[Math.floor(rng.next() * pool.length)];
+    const player = recoveredMarketPlayer(record, now);
+    if (owned.has(player.id) || used.has(player.id)) continue;
+    used.add(player.id);
+    picks.push({ id: `coach-listing-${season}-${round}-${picks.length + 1}`, sellerUserId: 'system-market', player, price: playerMarketValue(player), status: 'OPEN', createdAt: now.toISOString() });
+  }
+  profile.coachMarket = { listings: picks, refreshedAt: now.toISOString(), refreshedAtRound: round, season };
   profile.updatedAt = now.toISOString();
   return profile;
 }
 
-export function buyMarketPlayer(profileInput: PlayerProfile, listingId: string, now = new Date(), rng: RandomSource = new MathRandomSource()): { profile: PlayerProfile; listing: MarketListing } {
-  const profile = ensureClubState(profileInput, now, rng);
-  profile.market ??= [];
-  const listing = profile.market.find((item) => item.id === listingId && item.status === 'OPEN');
+export function buyCoachPlayer(profileInput: PlayerProfile, listingId: string, now = new Date(), rng: RandomSource = new MathRandomSource()): { profile: PlayerProfile; listing: MarketListing } {
+  const profile = ensureClubState(profileInput, now, rng, 'coachClubState');
+  if (!profile.coach || profile.coach.status !== 'EMPLOYED') throw new Error('Coach harus terikat kontrak dengan club untuk membeli pemain.');
+  const club = profile.coachClubState!;
+  const listing = profile.coachMarket?.listings.find((item) => item.id === listingId && item.status === 'OPEN');
   if (!listing) throw new Error('Listing tidak ditemukan atau sudah tidak tersedia.');
-  if (profile.money < listing.price) throw new Error('Money tidak cukup untuk membeli pemain ini.');
-  if (profile.clubState!.roster.some((player) => player.id === listing.player.id)) throw new Error('Pemain tersebut sudah berada di roster Anda.');
-  if (profile.clubState!.roster.length >= 32) throw new Error('Roster sudah penuh. Jual pemain non-user sebelum membeli pemain baru.');
-  ledger(profile, 'TRANSFER_BUY', -listing.price, `Membeli ${listing.player.name}`, now);
+  if (club.roster.some((player) => player.id === listing.player.id)) throw new Error('Pemain tersebut sudah berada di roster club.');
+  if (club.roster.length >= COACH_ROSTER_LIMIT) throw new Error(`Roster sudah penuh (${COACH_ROSTER_LIMIT}). Jual pemain sebelum membeli.`);
+  if (club.assets < listing.price) throw new Error(`Aset club tidak cukup: butuh ${formatMoney(listing.price)}, tersedia ${formatMoney(club.assets)}.`);
+  club.assets -= listing.price;
   listing.status = 'SOLD';
   listing.buyerUserId = profile.userId;
-  listing.player.isUserPlayer = false;
-  profile.clubState!.roster.push(listing.player);
+  club.roster.push({ ...clone(listing.player), isUserPlayer: false, morale: 80 });
   profile.updatedAt = now.toISOString();
   return { profile, listing };
 }
 
-export function sellClubPlayer(profileInput: PlayerProfile, playerId: string, now = new Date(), rng: RandomSource = new MathRandomSource()): { profile: PlayerProfile; price: number; player: ClubPlayer } {
-  const profile = ensureClubState(profileInput, now, rng);
-  const playerIndex = profile.clubState!.roster.findIndex((player) => player.id === playerId && !player.isUserPlayer);
-  if (playerIndex === -1) throw new Error('Pemain tidak ditemukan atau pemain utama tidak dapat dijual.');
-  const [player] = profile.clubState!.roster.splice(playerIndex, 1);
-  const price = Math.max(100, Math.round(player.overall * 18 + player.morale * 4));
-  ledger(profile, 'TRANSFER_SELL', price, `Menjual ${player.name}`, now);
+export function sellableCoachPlayers(profile: PlayerProfile): ClubPlayer[] {
+  const roster = profile.coachClubState?.roster ?? [];
+  const counts = { GK: 0, DF: 0, MF: 0, FW: 0 };
+  for (const player of roster) counts[player.position] += 1;
+  return roster.filter((player) => !player.isUserPlayer && counts[player.position] > MINIMUM_ROSTER_DEPTH[player.position]);
+}
+
+export function sellCoachPlayer(profileInput: PlayerProfile, playerId: string, now = new Date(), rng: RandomSource = new MathRandomSource()): { profile: PlayerProfile; price: number; player: ClubPlayer } {
+  const profile = ensureClubState(profileInput, now, rng, 'coachClubState');
+  if (!profile.coach || profile.coach.status !== 'EMPLOYED') throw new Error('Coach harus terikat kontrak dengan club untuk menjual pemain.');
+  const club = profile.coachClubState!;
+  if (!sellableCoachPlayers(profile).some((player) => player.id === playerId)) throw new Error('Pemain tidak ditemukan atau posisinya sudah di batas minimum roster.');
+  const index = club.roster.findIndex((player) => player.id === playerId);
+  const [player] = club.roster.splice(index, 1);
+  const price = Math.round(playerMarketValue(player) * COACH_MARKET_SELL_RATE);
+  club.assets += price;
   profile.updatedAt = now.toISOString();
   return { profile, price, player };
-}
-
-export function setListingStatus(profileInput: PlayerProfile, listingId: string, status: ListingStatus, now = new Date()): PlayerProfile {
-  const profile = clone(profileInput);
-  const listing = profile.market?.find((item) => item.id === listingId);
-  if (!listing) throw new Error('Listing tidak ditemukan.');
-  listing.status = status;
-  profile.updatedAt = now.toISOString();
-  return profile;
-}
-
-export function formatMoney(value: number): string {
-  return new Intl.NumberFormat('id-ID').format(value);
 }

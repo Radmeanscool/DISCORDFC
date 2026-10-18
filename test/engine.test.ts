@@ -5,11 +5,14 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { createInitialProfile, getRating, playMatch, recoverPlayer, SeededRandom, trainPlayer } from '../src/domain/engine.js';
 import { JsonPlayerStore } from '../src/storage/json-store.js';
+import { deriveMacroStats } from '../src/domain/types.js';
 
 test('creates a position-aware initial profile', () => {
   const profile = createInitialProfile('user-1', 'Rising Star', 'FW', new Date('2026-01-01T00:00:00.000Z'));
   assert.equal(profile.position, 'FW');
-  assert.equal(profile.stats.atk, 65);
+  // Macro stats are derived from the position preset's detailed skills.
+  assert.deepEqual(profile.stats, deriveMacroStats(profile.detailedSkills!));
+  assert.ok(profile.stats.atk > createInitialProfile('user-1b', 'Keeper', 'GK').stats.atk);
   assert.equal(profile.money, 1_000);
   assert.equal(getRating(profile) > 0, true);
 });

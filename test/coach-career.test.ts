@@ -71,6 +71,9 @@ test('Coach Champions League uses an isolated Coach aggregate and season', () =>
   assert.notEqual(coachStarted.championsLeague, coachStarted.coach!.championsLeague);
   const playerAssets = coachStarted.clubState!.assets;
   const playerStats = coachStarted.stats;
+  // Rounds are spread over the league calendar: the first one opens after league matchday 8.
+  assert.throws(() => playChampionsLeague(coachStarted, new Date('2026-01-02T00:00:00.000Z'), new SeededRandom(17), 'COACH'), /dibuka setelah matchday liga 8/);
+  for (const fixture of coachStarted.coachClubState!.fixtures.slice(0, 8)) fixture.played = true;
   const played = playChampionsLeague(coachStarted, new Date('2026-01-02T00:00:00.000Z'), new SeededRandom(17), 'COACH');
   assert.ok(played.profile.coach!.championsLeague);
   assert.equal(played.profile.league.season, playerLeagueSeason);
@@ -108,12 +111,18 @@ test('Coach job, retirement, and rebirth preserve Player state while changing Co
   assert.equal(accepted.club, playerClub);
   assert.equal(accepted.coachClubState!.name, generated.offer.clubName);
   assert.equal(accepted.league.season, playerLeagueSeason);
-  assert.equal(accepted.coach!.season, 2);
+  // Switching clubs before the first round keeps the season; leaving mid-season starts the next one.
+  assert.equal(accepted.coach!.season, 1);
+  const midSeason = advanceCoachRound(accepted, new Date('2026-02-02T00:00:00.000Z'), new SeededRandom(13)).profile;
+  const secondOffer = generateJobOffer(midSeason, new SeededRandom(14), new Date('2026-02-03T00:00:00.000Z'));
+  const moved = acceptJobOffer(secondOffer.profile, secondOffer.offer.id, new Date('2026-02-03T00:00:00.000Z'));
+  assert.equal(moved.coach!.season, 2);
+  assert.equal(moved.coachClubState!.fixtures.every((fixture) => !fixture.played), true);
   const retired = retireCoach(accepted, new Date('2026-03-01T00:00:00.000Z'));
   assert.equal(retired.coach!.status, 'RETIRED');
   const reborn = rebirthCoach(retired, new Date('2026-03-02T00:00:00.000Z'));
   assert.equal(reborn.coach!.status, 'EMPLOYED');
-  assert.equal(reborn.coach!.season, 3);
+  assert.equal(reborn.coach!.season, 2);
   assert.equal(reborn.club, playerClub);
   assert.equal(reborn.league.season, playerLeagueSeason);
   assert.equal(reborn.coachClubState!.name, generated.offer.clubName);

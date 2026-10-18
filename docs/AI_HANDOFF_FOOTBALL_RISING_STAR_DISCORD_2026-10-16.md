@@ -10,6 +10,26 @@
 
 ---
 
+## 0. Pembaruan 2026-10-18 — audit parity & perbaikan
+
+Branch: `claude/dazzling-ritchie-rsmqre`. Detail temuan, perbaikan, audit ulang, dan angka verifikasi ada di [`AUDIT_FIX_REPORT_2026-10-18.md`](AUDIT_FIX_REPORT_2026-10-18.md). Status singkat roadmap P0 (bagian 10):
+
+| P0 | Status |
+|---|---|
+| Persisted Versus notification + delivery DM | ✅ Outbox per profil (`notification-engine.ts`, `versus-notifications.ts`) + `NotificationDispatcher` + worker DM di `index.ts` |
+| Idempotency key + retry | ✅ ID deterministik per event; backoff 1m→6h, maks 5 percobaan, error permanen 50007/10013; diuji di `test/notifications.test.ts` |
+| Season rollover | ✅ `rolloverVersusClub` (idempoten via `lastRolloverSeasonId`) dipicu tombol **Next Season** |
+| Juara & runner-up naik tier | ✅ Grade dipindahkan saat rollover, lalu season baru dibuat di liga tujuan (`startNextVersusSeason`); diuji di `test/versus-service.test.ts` |
+| Ownership club/group terkunci | ✅ Club terkunci di group sampai season selesai; tidak ada transfer club Versus |
+| Test concurrency settlement & DM queue | ✅ Catch-up paralel memproses round sekali; batch save all-or-nothing; outcome DM digabung ke profil terbaru |
+| DM gagal tidak membatalkan settlement | ✅ Delivery terpisah dari settlement; kegagalan hanya menandai record notifikasi |
+
+Perubahan besar lain: Player memakai fixture liga klub + performa personal + season penuh; recovery per jam penuh; Coach ability berefek + pemecatan + transfer market; Versus tier S→E dengan NPC per tier, taktik/formasi berpengaruh, cedera/skors, market terlindungi, assignment public league `PUB-<tier>-<YYMMDD>-<NN>`; optimistic concurrency pada JSON & PostgreSQL; panel ephemeral diperbarui di tempat; custom id lineup pendek (round + versi roster). Test: **126/126**.
+
+Aturan pada bagian 11 tetap berlaku dan dipatuhi oleh perubahan ini.
+
+---
+
 ## 1. Tujuan Produk
 
 Proyek ini adalah adaptasi **Football Rising Star** ke Discord menggunakan satu public slash command:
@@ -82,7 +102,7 @@ grade 4 → Liga D
 grade 5 → Liga E
 ```
 
-**Penting:** commit terakhir baru menyimpan `promotedToLeague` dan `relegatedToLeague` pada reward season. Automatic season rollover dan perpindahan permanent league masih merupakan pekerjaan lanjutan.
+**Penting (diperbarui 2026-10-18):** rollover season dan perpindahan grade permanen sudah diimplementasikan; grade berpindah saat pemain menekan **Next Season**, lalu season baru dibuat di liga tujuan. Club dari skala grade lama dimulai ulang di Liga E tanpa promosi ganda.
 
 ### Notification Versus
 
@@ -719,6 +739,8 @@ docs/TECHNICAL_GAMEPLAY_STATE_MATRIX_2026-08-26.md
 
 ## 9. Test dan Runtime Terakhir
 
+> Status terbaru ada di bagian 0 (126/126 test). Catatan di bawah adalah snapshot 2026-10-16.
+
 Validasi terakhir setelah perubahan tier huruf:
 
 ```text
@@ -813,4 +835,4 @@ Sebelum mengubah source:
 
 ## 12. Ringkasan Satu Paragraf
 
-DISCORDFC sudah memiliki fondasi Player, Coach, dan Versus yang terpisah. Player adalah karier satu atlet dengan weekly training/match/EXP/event; Coach adalah karier manajemen klub single-player dengan roster, board, formation, tactic, dan season; Versus adalah multiplayer club-management mandiri dengan roster, lineup, scheduled battle, online league, standings, wallet, market, dan reward. Versus tidak menggunakan negara, menggunakan tier liga huruf, juara dan runner-up harus naik kasta, klub tidak boleh pindah club/owner/group, dan hasil gameplay harus dikirim melalui DM Discord. Source/test saat ini sudah memvalidasi sebagian besar aggregate dan isolation, tetapi season rollover, permanent promotion, immutable ownership, DM notification, retry, Scout/Sponsor mutation, dan canonical persistence masih menjadi pekerjaan lanjutan.
+DISCORDFC sudah memiliki fondasi Player, Coach, dan Versus yang terpisah. Player adalah karier satu atlet dengan weekly training/match/EXP/event; Coach adalah karier manajemen klub single-player dengan roster, board, formation, tactic, dan season; Versus adalah multiplayer club-management mandiri dengan roster, lineup, scheduled battle, online league, standings, wallet, market, dan reward. Versus tidak menggunakan negara, menggunakan tier liga huruf, juara dan runner-up harus naik kasta, klub tidak boleh pindah club/owner/group, dan hasil gameplay harus dikirim melalui DM Discord. Per 2026-10-18 season rollover, permanent promotion, ownership terkunci, DM notification dengan retry/idempotency, serta mutasi Scout/Sponsor sudah tersedia dan teruji; canonical PostgreSQL repository untuk Versus (bukan replikasi season di tiap profil) tetap menjadi pekerjaan skala berikutnya.

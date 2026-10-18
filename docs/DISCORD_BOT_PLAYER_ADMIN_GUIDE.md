@@ -1,6 +1,6 @@
 # Panduan Lengkap Football Rising Star Discord Bot
 
-**Status dokumen:** 13 Oktober 2026
+**Status dokumen:** 18 Oktober 2026
 **Mode utama:** `/play` → Buttons dan Select Menus
 **Target:** Player, Coach, Versus, operator bot, dan administrator server
 
@@ -10,48 +10,33 @@
 
 ### Kesimpulan
 
-Game ini **siap untuk beta testing dan internal playtesting**. Seluruh loop utama sudah dapat dimainkan melalui Discord, state mingguan sudah diuji, dan menu button-first sudah memiliki test integrasi.
+Ketiga mode **dapat dimainkan penuh lewat tombol** dan sudah melewati audit parity + perbaikan (lihat [`AUDIT_FIX_REPORT_2026-10-18.md`](AUDIT_FIX_REPORT_2026-10-18.md)). Game cocok untuk **closed beta / internal playtest**.
 
-Game ini **belum dapat disebut replika 1:1** Football Rising Star asli karena formula server, live balance, matchmaking, payout, dan konfigurasi backend asli tidak tersedia secara publik. Implementasi saat ini adalah **Discord adaptation yang mengikuti loop dan permukaan gameplay yang terverifikasi**.
+Game ini **bukan replika 1:1** Football Rising Star asli: formula server, live balance, dan payout asli tidak tersedia. Nilai yang belum terverifikasi disimpan di `src/config/game-balance.ts` dengan label `RECOVERY_INFERRED`.
 
 ### Status verifikasi terakhir
 
 - Build TypeScript: berhasil
-- Test suite: **82 lulus, 0 gagal**
-- Weekly UI integration test: lulus
-- Player/Coach/Versus aggregate isolation: diuji
-- Owner-bound button dan select menu: diuji
-- Transfer club preview dan confirm: tersedia
-- Match telemetry: possession, shots, shots on target, corners tersedia
-- Repository GitHub: branch `main` sudah sinkron
+- Test suite: **126 lulus, 0 gagal**
+- Alur handler end-to-end (Player, Coach, Versus) dengan validasi batas Discord: lulus
+- Migrasi save versi sebelumnya: diuji
+- Outbox DM Versus (delivery, retry, idempotency): diuji
+- `tools/targeted-audit.ts`: PASS · `tools/stress-simulation.ts`: PASS (determinisme + invariant ketiga mode)
 
-### Yang sudah parity secara kuat
+### Yang sudah setara dengan loop game
 
-- Player career berbasis weekly cycle
-- Training dan detailed skill progression
-- Simulated match
-- Assign EXP setelah match
-- Injury dan recovery
-- Event mingguan: interview, sponsor, medical incident, lifestyle
-- Club Office, fixture, league table, squad, formation, tactic
-- Transfer club dengan preview dan konfirmasi
-- Contract, salary, market, achievements, honors
-- Coach career dan club management
-- Versus asynchronous competition
-- Button-first Discord navigation
+- Player: weekly cycle mengikuti fixture liga klub (satu season = seluruh fixture liga), performa personal per posisi (gol/assist/rating/kartu/MVP), recovery real-time, kurva skill 1–99, World Footballer dari statistik season, kontrak per season dengan gaji mingguan, transfer window + tawaran akhir season, pensiun & rebirth
+- Liga: klasemen penuh, promosi/degradasi 3 klub, kualifikasi Champions League
+- Coach: ability berefek di pertandingan, board target realistis, pemecatan, job offer berbasis reputasi, transfer market, season settlement
+- Versus: liga huruf S→E, NPC per tier, taktik & formasi berpengaruh, cedera/skors, market lelang, sponsor, scout, Next Season dengan promosi, notifikasi DM
 
 ### Yang masih reconstructed/inferred
 
-- Formula overall dan player rating
-- Peluang gol dan hasil simulasi
-- Biaya serta reward training
-- Durasi dan peluang cedera
-- Valuasi transfer dan negosiasi
-- Sponsor payout dan matchmaking coefficient
-- Formula ranking/reward season
-- Detail retirement/rebirth yang tidak tersedia dari server asli
-
-Nilai tersebut disimpan sebagai balance configurable dan tidak boleh dipromosikan sebagai formula resmi Football Rising Star asli.
+- Rumus rating/overall, peluang gol, dan nilai reward
+- Durasi cedera, biaya treatment, trainer, sponsor
+- Valuasi transfer, gaji, syarat rating klub
+- Ruleset Versus (taktik, sponsor, scout, harga lelang)
+- Data roster recovered tidak lengkap (beberapa klub kekurangan pemain; diisi pemain sintetis sampai kedalaman minimum)
 
 ---
 
@@ -63,516 +48,195 @@ Nilai tersebut disimpan sebagai balance configurable dan tidak boleh dipromosika
 /play
 ```
 
-Secara default hanya `/play` yang didaftarkan ke Discord. Setelah command ini digunakan, pemain berpindah melalui tombol dan select menu.
+Secara default hanya `/play` yang didaftarkan. Balasan `/play` publik; klik pertama dari pesan itu membuka **panel pribadi** (hanya terlihat oleh Anda). Klik berikutnya di panel pribadi **memperbarui panel yang sama** — tidak ada spam pesan baru.
 
 ### Prinsip tombol
 
-- Tombol hanya dapat digunakan oleh pemilik profile yang membuat menu.
+- Tombol hanya dapat digunakan oleh pemilik panel.
 - Tombol disabled berarti state saat ini belum mengizinkan aksi tersebut.
-- Select Menu dipakai untuk pilihan posisi, skill, event response, formation, tactic, lineup, dan transfer.
-- Setelah satu aksi selesai, bot mengembalikan pemain ke panel mode yang relevan.
-- Jangan menekan tombol lama setelah state berubah; buka ulang `/play` jika pesan sudah kedaluwarsa.
+- Error ditampilkan sebagai pesan pribadi singkat; panel tetap seperti sebelumnya.
+- Jika data berubah di proses lain (mis. worker), aksi diulang otomatis dengan data terbaru.
 
 ### Game Home
 
-Setelah `/play`, tersedia:
-
 | Tombol | Fungsi |
 |---|---|
-| **Player Mode** | Membuka atau membuat Player career |
-| **Coach Mode** | Membuka atau membuat Coach career |
-| **Versus Mode** | Membuka Versus Home dan assignment system |
-
-Tombol navigasi umum:
-
-| Tombol | Fungsi |
-|---|---|
-| **Game Home** | Kembali ke menu utama |
-| **Player Home / Weekly Hub** | Kembali ke panel Player |
-| **Coach Mode** | Berpindah ke Coach menu |
-| **Versus Mode** | Berpindah ke Versus Home |
+| **Player Mode** | Membuka atau membuat karier atlet |
+| **Coach Mode** | Membuka atau membuat karier Coach |
+| **Versus Mode** | Membuka Versus Home; club dimasukkan otomatis ke public league |
 
 ---
 
-## 3. Player Mode: panduan lengkap
+## 3. Player Mode
 
 ### 3.1 Membuat pemain
 
-1. Gunakan `/play`.
-2. Tekan **Player Mode**.
-3. Jika belum memiliki profile, pilih posisi dari Select Menu:
-   - Goalkeeper (`GK`)
-   - Defender (`DF`)
-   - Midfielder (`MF`)
-   - Forward (`FW`)
-4. Bot membuat pemain usia awal 15 tahun, klub awal, condition, money, abilities, detailed skills, dan weekly state.
+`/play` → **Player Mode** → pilih posisi (GK/DF/MF/FW). Atlet dibuat usia 15 di klub starter liga 1011 dengan **kontrak awal 2 season** (gaji dibayar tiap Weekly Update).
 
 ### 3.2 Player Weekly Hub
 
-Player Weekly Hub adalah pusat gameplay utama.
-
-#### Baris status dan personal
-
-| Tombol | Fungsi |
+| Baris | Tombol |
 |---|---|
-| **Player Status** | Melihat rating, condition, money, career statistics, club, macro abilities, detailed skills, dan weekly state |
-| **Training** | Membuka menu macro training |
-| **Personal** | Membuka Culture Study: Science, Arts, atau History |
-| **Club** | Membuka Club Office |
+| 1 | **Player Status** · **Training** · **Personal** · **Club** · **Career** (menjadi **Rebirth** setelah pensiun) |
+| 2 | **Next Week** · **Play Match** · **Assign EXP / Detailed Skills** · **Recovery** |
+| 3 | **Weekly Event Decision** (jika ada) · **Daily Reward** · **Contract** · **Honors** · **Champions** |
+| 4 | **Game Home** · **Coach Mode** · **Versus Mode** |
 
-#### Baris progression
-
-| Tombol | Fungsi |
-|---|---|
-| **Next Week** | Menjalankan recovery, trainer settlement, sponsor payout, injury settlement, dan random weekly event |
-| **Weekly Update** | Label pengganti ketika state belum mengizinkan maju; tombol disabled sampai state benar |
-| **Play Match** | Menjalankan simulasi pertandingan ketika stage `MATCH_READY` |
-| **Match** | Tombol disabled apabila weekly update, event, atau EXP belum selesai |
-| **Detailed Skills** | Melihat 12 detailed skills |
-| **Assign EXP** | Muncul ketika match menghasilkan pending EXP |
-| **Recovery** | Melihat condition, cedera, dan treatment |
-
-#### Baris career tambahan
-
-| Tombol | Fungsi |
-|---|---|
-| **Weekly Event Decision** | Membuka pilihan event jika stage `EVENT_PENDING` |
-| **Daily Reward** | Mengambil daily reward dan streak |
-| **Contract** | Melihat atau memperbarui kontrak |
-| **Honors** | Melihat Hall of Honor dan World Footballer |
-| **Champions** | Melihat status atau memainkan Player Champions League |
-
-### 3.3 Weekly cycle yang benar
+### 3.3 Weekly cycle
 
 ```text
-READY
-→ Next Week
-→ Weekly Update
-→ [opsional] Weekly Event Decision
-→ MATCH_READY
-→ Play Match
-→ Match Result
-→ Assign EXP
-→ League Table / Weekly Hub
-→ READY
+READY → Next Week → [Weekly Event Decision] → MATCH_READY → Play Match → [Assign EXP] → READY
 ```
 
-#### Stage `READY`
-
-- **Next Week** aktif.
-- **Match** disabled.
-- Player dapat training atau melakukan personal activity sebelum maju.
-
-#### Stage `EVENT_PENDING`
-
-- Event mingguan harus diselesaikan.
-- **Next Week** dan **Match** tidak dapat digunakan untuk melewati event.
-- Tekan **Weekly Event Decision**, lalu pilih respons di Select Menu.
-
-#### Stage `MATCH_READY`
-
-- Weekly update selesai.
-- **Play Match** aktif.
-- Tekan tombol tersebut untuk simulasi pertandingan.
-
-#### Stage `EXP_PENDING`
-
-- Match sudah selesai.
-- Pilih detailed skill dari Assign EXP Select Menu.
-- Bot menyediakan tombol **League Table** untuk melihat klasemen setelah hasil pertandingan.
-- Weekly cycle tidak boleh dilanjutkan sebelum pending EXP dialokasikan.
-
-#### Stage `SEASON_BREAK`
-
-- Season selesai dan annual award dapat ditampilkan.
-- Tekan **Next Week** untuk melanjutkan career cycle berikutnya.
+- **Next Week**: recovery mingguan, gaji kontrak, trainer, sponsor, cedera/skors berkurang, peluang event.
+- **Play Match**: memainkan fixture liga berikutnya klub Anda. Pertandingan lain di round itu ikut disimulasikan sehingga klasemen selalu lengkap. Jika cedera, terskors, atau kondisi buruk, Anda absen tetapi klub tetap bermain.
+- **Assign EXP**: pilih **satu** skill (semua EXP masuk ke sana) atau **beberapa** skill (EXP dibagi rata). EXP yang melebihi level maksimal mengalir ke skill lain; jika semua skill sudah 99, EXP dikonversi ke money.
+- Setelah matchday terakhir, season ditutup otomatis: peringkat akhir, promosi/degradasi klub, World Footballer, honors (juara liga, Golden Boot, Young Player), usia +1, sisa kontrak −1 season, dan tawaran transfer. Stage menjadi `SEASON_BREAK` (transfer window terbuka).
 
 ### 3.4 Training
 
-Tekan **Training** dari Player Weekly Hub.
+- **Regular Training** (pilih macro ability): sekali per minggu, mengonsumsi energy, EXP masuk ke detailed skill terkait.
+- **Detailed Skills**: pilih satu dari 12 skill; selesai pada Weekly Update berikutnya.
+- **Tricks**: membuka trick jika syarat skill terpenuhi (skala 1–99); trick menambah peluang gol dan rating.
+- **Trainer**: sewa trainer (biaya per minggu) untuk EXP mingguan otomatis; bisa dilepas kapan saja.
+- **Culture Study** (tombol Personal): Science/Arts/History, memberi charm dan EXP skill.
 
-Macro abilities yang tersedia:
+Kurva skill: biaya per level naik bertahap dan jauh lebih mahal di atas level 75, sehingga puncak karier biasanya usia 27–30. Usia 31+ mengalami penurunan fisik ringan.
 
-- Attack
-- Defence
-- Speed
-- Power
-- Strength
-- Technique
+### 3.5 Recovery dan cedera
 
-Training mengurangi Energy dan memberikan EXP/peningkatan ability sesuai balance configuration.
+HP pulih **+2/jam** dan energy **+10/jam** secara real time (dihitung per jam penuh, tidak hilang walau sering membuka panel). Panel **Recovery** menampilkan cedera dan treatment Basic/Expert.
 
-#### Detailed Training
-
-Tekan **Detailed Skills** atau masuk melalui panel training. Pilihan skill:
-
-- Shots
-- Penalty
-- Header
-- Pass
-- Dribbling
-- Free Kick
-- Off-ball Running
-- Hold Off Defenders
-- Teamwork
-- Endurance
-- Speed
-- Willpower
-
-Setelah memilih skill, training order dapat memiliki completion week. Tekan **Next Week** untuk menyelesaikan order yang sudah waktunya.
-
-### 3.5 Personal / Culture Study
-
-Tekan **Personal** lalu pilih:
-
-- Science
-- Arts
-- History
-
-Culture Study berjalan sebagai aktivitas terjadwal dan dapat memberikan charm serta reward skill tertentu setelah settlement.
-
-### 3.6 Weekly Events
-
-Event bersifat blocking. Jenis yang tersedia:
-
-| Event | Contoh dampak |
-|---|---|
-| **Interview** | Charm, EXP, money, atau energy |
-| **Sponsor Offer** | Kontrak sponsor dengan pembayaran mingguan |
-| **Medical Incident** | Recovery aman atau risiko injury |
-| **Lifestyle** | Charm, money, atau recovery |
-
-Default balance saat ini:
-
-- Peluang event per weekly update: 32%
-- Medical incident dari event sehat: 18% dari event roll
-- Sponsor contract: 6 minggu
-- Sponsor Local: 90 money/minggu
-- Sponsor Regional: 160 money/minggu
-- Sponsor Global: 280 money/minggu
-
-Angka tersebut adalah **balance reconstructed**, bukan klaim angka resmi game asli.
-
-### 3.7 Match Result
-
-Setelah **Play Match**, bot menampilkan:
-
-- skor akhir;
-- lawan;
-- player rating;
-- possession;
-- shots;
-- shots on target;
-- corners;
-- HP dan Energy setelah match;
-- pending EXP;
-- narrative hasil pertandingan.
-
-Contoh urutan setelah match:
-
-```text
-Match Result
-→ Assign EXP
-→ League Table
-→ Weekly Hub
-```
-
-### 3.8 Assign EXP
-
-1. Tekan **Assign EXP**.
-2. Pilih satu detailed skill.
-3. Seluruh atau sebagian pending EXP dialokasikan sesuai menu yang digunakan.
-4. Setelah pending EXP menjadi 0, state kembali ke `READY`.
-
-Tombol yang tersedia di panel Assign EXP:
-
-- **Weekly Hub**
-- **League Table**
-- **Game Home**
-
-### 3.9 Recovery dan injury
-
-Tekan **Recovery** dari Weekly Hub.
-
-Pilihan treatment yang tersedia:
-
-- View injury status
-- Basic treatment
-- Expert treatment
-
-Panel injury menampilkan severity, sisa minggu cedera, source, treatment status, HP, Energy, dan waktu recovery berikutnya jika tersedia.
-
-### 3.10 Club Office
-
-Tekan **Club**.
-
-Tombol Club Office:
+### 3.6 Club
 
 | Tombol | Fungsi |
 |---|---|
-| **Play Club Match** | Menjalankan fixture klub berikutnya |
-| **League Table** | Melihat klasemen klub |
-| **Squad** | Melihat roster, posisi, overall, HP, dan ID pemain |
-| **Formation/Tactic** | Mengubah formasi dan taktik klub |
-| **Market** | Membuka transfer market pemain |
-| **Change Club** | Membuka official club transfer flow |
-| **Player Home** | Kembali ke Player Hub |
-| **Game Home** | Kembali ke Game Home |
+| **League Table** | Klasemen lengkap, posisi Anda ditebalkan |
+| **Squad** | Roster klub (formasi/taktik diatur pelatih AI) |
+| **Transfer Offers** | Terima/tolak tawaran yang datang di akhir season |
+| **Change Club** | Daftar klub yang mau merekrut rating Anda → preview biaya → konfirmasi. Aktif hanya pra-musim atau season break |
 
-### 3.11 Transfer club
+Atlet tidak memainkan "club match" terpisah, tidak membeli pemain, dan tidak mengatur taktik — itu ada di Coach Mode.
 
-Alur transfer dibuat button-first:
+### 3.7 Contract
 
-```text
-Club Office
-→ Change Club
-→ Pilih official club
-→ Transfer Preview
-→ Confirm Transfer
-```
+Kontrak dihitung dalam **season**. Tombol **Renew** aktif pada season terakhir kontrak (atau setelah kontrak habis); **Request Raise** sekali per season, dinilai dari rating saat ini.
 
-Transfer Preview menampilkan:
+### 3.8 Honors dan Champions
 
-- klub saat ini;
-- klub tujuan;
-- league;
-- grade;
-- prestige;
-- transfer fee;
-- saldo setelah transfer;
-- dampak terhadap kontrak dan club state.
+- **Honors**: Hall of Honor (Personal/Team/National), World Footballer terakhir, dan klaim achievement yang siap.
+- **Champions**: tersedia jika klub lolos (4 besar divisi 1). Ronde dibuka bertahap mengikuti matchday liga (ronde 1 setelah matchday 8, dst.); lawan klub kontinental; seri diakhiri adu penalti.
 
-Tombol konfirmasi:
+### 3.9 Career, pensiun, rebirth
 
-- **Confirm Transfer**
-- **Choose Another**
-- **Cancel**
-
-Transfer fee, valuation, dan salary tetap dianggap reconstructed sampai data resmi tersedia.
-
-### 3.12 Honors dan Champions
-
-Panel **Honors** digunakan untuk melihat:
-
-- Hall of Honor;
-- World Footballer result;
-- awards;
-- achievement progress;
-- achievement claim.
-
-Panel **Champions** digunakan untuk:
-
-- melihat qualification/status;
-- memainkan ronde jika syarat terpenuhi;
-- melihat reward dan progression terisolasi dari Coach aggregate.
+Panel **Career** menampilkan riwayat season dan generasi sebelumnya. Pensiun sukarela tersedia mulai usia 30 (konfirmasi dua langkah); pensiun otomatis usia 34 atau setelah 20 tahun karier. **Rebirth** memulai generasi baru (usia 15, posisi bisa diganti, bonus skill per rebirth) dengan money, honors, dan riwayat dipertahankan.
 
 ---
 
 ## 4. Coach Mode
 
-Coach Mode tidak menggunakan Player EXP. State Coach terpisah dari Player.
+Klub Coach adalah aggregate terpisah: atlet Player Anda tidak pernah bermain untuk klub Coach.
 
-### Tombol Coach Home
-
-| Tombol | Fungsi |
+| Baris | Tombol |
 |---|---|
-| **Coach Profile** | Melihat age, level, approval, salary, target, ability, dan EXP |
-| **Play Round** | Menjalankan fixture Coach berikutnya |
-| **Club Office** | Melihat club resources, roster, fixture, formation, dan tactic |
-| **Decision** | Menyelesaikan management decision jika pending |
-| **Coach EXP** | Mengalokasikan Coach EXP ke ability |
-| **Formation/Tactic** | Mengubah strategi klub Coach |
-| **Job Offers** | Generate, list, accept, atau decline tawaran klub |
-| **Champions** | Membuka Coach Champions League |
-| **Game Home** | Kembali ke Game Home |
-| **Versus Mode** | Berpindah ke Versus |
+| 1 | **Coach Profile** · **Play Round** · **Club Office** · **Decision** |
+| 2 | **Coach EXP** · **Formation/Tactic** · **Job Offers** · **Champions** |
+| 3 | **Transfer Market** · **Season Settlement** · **Career** · **Game Home** · **Versus Mode** |
 
-### Coach abilities
-
-- Formation Understanding
-- Tactical Thinking
-- State Adjustment
-- Training Level
-- Locker Room Prestige
-- Personal Charisma
-
-### Coach flow
-
-```text
-Coach Home
-→ Play Round
-→ Match Result
-→ Coach EXP / Approval
-→ Decision jika ada
-→ Board Target / Club Season
-```
-
-### Job Offers
-
-Panel Job Offers dapat digunakan untuk:
-
-- Generate offer
-- List offers
-- Accept offer
-- Decline offer
-
-Offer dapat menampilkan club, league, salary, target rank, dan duration. Formula offer adalah reconstructed.
-
-### Coach retirement/rebirth
-
-Retirement dan rebirth Coach terpisah dari Player. Jangan menganggap retirement Coach menghapus Player career.
+- **Ability Coach berefek nyata**: Formation (kekuatan formasi), Tactics (efek taktik), State Adjustment (comeback saat tertinggal), Training (perkembangan pemain), Locker Room (moral), Charisma (approval board).
+- **Board target** berasal dari peringkat yang wajar untuk kekuatan klub (bertahan, papan tengah, Eropa, juara, promosi).
+- **Approval** terlalu rendah → **dipecat di tengah season**; pilih klub baru di Job Offers.
+- **Job Offers**: klub menawarkan kontrak sesuai reputasi Coach; cari tawaran sekali per round; terima atau tolak.
+- **Transfer Market**: daftar pemain diperbarui tiap round, dibeli/dijual dengan **assets klub**; kedalaman minimum per posisi dijaga.
+- **Season Settlement**: aktif setelah fixture terakhir; menampilkan peringkat, promosi/degradasi, hasil target board, dan kualifikasi Champions League.
+- **Career**: pensiun (konfirmasi) dan rebirth Coach dengan bonus dari honor.
 
 ---
 
 ## 5. Versus Mode
 
-Versus adalah mode asynchronous dengan aggregate, roster, wallet, assignment, dan season yang terpisah dari Player dan Coach.
+Versus memakai club, roster, dan wallet sendiri (tidak terhubung ke Player/Coach) dan **tidak memakai negara**.
 
-### Versus Home
+### 5.1 Liga dan season
 
-| Tombol | Fungsi |
+- Tier liga: **S → A → B → C → D → E**. Club baru mulai di **Liga E**.
+- Public league dibuat otomatis per tier: `PUB-<tier>-<YYMMDD>-<NN>`, 8 club. Club manusia mengambil slot NPC sebelum round 1; setelah itu group baru dibuka.
+- Satu round per hari (deadline terlihat di Home). Battle diproses otomatis saat deadline; tanpa submission, sistem memakai lineup otomatis terbaik.
+- **Rank 1–2 promosi, 2 terbawah degradasi** (Liga E tidak punya degradasi).
+- Setelah round terakhir, season selesai: reward dibagikan, market ditutup (bid dibatalkan, coin dilepas). Tekan **Next Season** — saat itulah grade club dipindahkan dan season baru dibuat di liga tujuan.
+
+### 5.2 Versus Home
+
+| Baris | Tombol |
 |---|---|
-| **Home** | Kembali ke Versus Home |
-| **Next Battle** | Membuka battle berikutnya setelah siap/due |
-| **Lineup** | Membuka lineup builder |
-| **Results** | Melihat hasil battle |
-| **Standings** | Melihat klasemen Versus |
-| **Registration** | Melihat status assignment, group, capacity, dan competition |
-| **Market** | Membuka Deal/auction market |
-| **Rewards** | Melihat reward dan ledger |
-| **Schedule** | Melihat fixture Versus |
-| **Rankings** | Membuka kategori ranking |
-| **Global Ranking** | Melihat season-wide ranking |
-| **Sponsor** | Melihat sponsor tiers dan reward surface |
+| 1 | **Home** · **Lineup / Edit Lineup** · **Results** · **Standings** · **Schedule** |
+| 2 | **Market** · **Squad** · **Scout** · **Sponsor** · **Rankings** |
+| 3 | **Rewards** · **Registration** · **Global Ranking** · **DM: On/Off** · **Game Home** |
 
-### Lineup builder
-
-Alur lineup:
+### 5.3 Lineup builder
 
 ```text
-Lineup
-→ Formation
-→ Tactic
-→ Pilih XI berdasarkan posisi
-→ Captain
-→ Substitutes
-→ Review
-→ Confirm Submission
+Lineup → Formation + Tactic → [Auto XI] atau Choose XI per posisi → Review → Captain + Substitutes → Confirm
 ```
 
-Validasi yang dilakukan:
+- Hanya pemain yang bisa bermain (tidak cedera/skors) yang muncul di pilihan.
+- **Auto XI** memilih XI terbaik berdasarkan kemampuan dan kondisi untuk formasi terpilih.
+- Submission bisa diubah sampai deadline; jika round sudah berganti, panel meminta Anda membuka ulang.
+- Taktik punya trade-off attack/defence/control dan matchup terhadap taktik lawan (mis. Counter unggul melawan Attacking).
 
-- slot posisi legal;
-- roster version masih sama;
-- captain berasal dari lineup;
-- substitute tidak melebihi batas;
-- player yang cedera/blocked tidak dapat dipilih;
-- submission harus sebelum deadline.
+### 5.4 Market, Squad, Scout, Sponsor
 
-### Versus Market
+- **Market**: 6 listing per siklus (pemain NPC + free agent), lelang 6 jam, bid me-*reserve* coin (didebit saat menang), bid di 5 menit terakhir memperpanjang lelang, roster maksimal 25 termasuk bid aktif. Siklus baru dibuat otomatis.
+- **Squad**: lepas pemain (refund 10% nilai); posisi di batas minimum dan pemain dalam lineup yang sudah disubmit tidak bisa dilepas.
+- **Scout**: Junior/Senior, sekali per round, merekrut prospek 17–20 tahun ke roster.
+- **Sponsor**: satu per season; Junior (semua liga), Senior (Liga C+), Top (Liga A+); bonus per menang/seri.
 
-Market mendukung:
+### 5.5 Notifikasi DM
 
-- melihat listing Deal;
-- melihat countdown;
-- melakukan bid;
-- reservation coin;
-- outbid release;
-- settlement idempotent;
-- ledger transaksi.
-
-Scout dan Sponsor tetap ditampilkan secara transparan apabila mechanic detail belum terkalibrasi.
-
-### Versus ranking
-
-Kategori yang tersedia:
-
-- Club Ranking
-- MVP
-- Golden Boot / Top Scorers
-- Top Assists
-- Goalkeeper Ranking
-- Global Ranking
-
-Metric goalkeeper yang belum tersedia tidak boleh dianggap nol; panel akan menandainya sebagai unavailable bila telemetry belum ada.
+Semua notifikasi gameplay Versus dikirim via **DM**: klub masuk liga, pengingat deadline (3 jam sebelum, jika belum submit), hasil battle, bid dikalahkan, hasil lelang, dan akhir season. Matikan/aktifkan dengan tombol **DM: On/Off**. Bot hanya bisa DM jika Anda berada di server yang sama dan tidak menutup DM dari anggota server.
 
 ---
 
 ## 6. Slash command fallback dan operator
 
-Dalam mode default, command detail tidak didaftarkan. Untuk operator/testing, set:
-
-```env
-REGISTER_FALLBACK_COMMANDS=true
-```
-
-Lalu jalankan registrasi command kembali.
+Dalam mode default, command detail tidak didaftarkan. Untuk operator/testing set `REGISTER_FALLBACK_COMMANDS=true` lalu registrasi ulang. Balasan fallback bersifat ephemeral.
 
 ### Player fallback
 
 | Command | Fungsi |
 |---|---|
-| `/player career start position:FW` | Membuat Player profile |
-| `/player career profile` | Melihat profile |
-| `/player career next-week` | Memproses weekly update |
-| `/player career match` | Simulasi match |
-| `/player career league` | Klasemen |
-| `/player career injury action:view\|basic-treatment\|expert-treatment` | Injury/recovery |
-| `/player career contract action:view\|sign` | Contract |
-| `/player career daily` | Daily reward |
-| `/player career champions action:status\|play` | Champions |
-| `/player training train ability:technique` | Macro training |
-| `/player training skills` | Detailed skills |
-| `/player training train-skill skill:shots` | Detailed training |
-| `/player training assign-exp skill:shots amount:10` | Assign EXP |
-| `/player training trick action:list\|train` | Trick |
-| `/player training trainer action:list\|hire\|release` | Trainer |
-| `/player training culture subject:science` | Culture Study |
-| `/player club overview` | Club Office |
-| `/player club list league:1011` | Official clubs |
-| `/player club join club_id:101102` | Pindah club |
-| `/player club squad` | Squad |
-| `/player club formation id:4-3-3` | Formasi |
-| `/player club tactic id:attacking` | Taktik |
-| `/player club match` | Club fixture |
-| `/player club standings` | Klasemen |
-| `/player club market action:list\|refresh` | Market |
-| `/player club buy listing:listing-market-1` | Beli pemain |
-| `/player club sell player:npc-1` | Jual pemain |
-| `/player honors list` | Honors |
-| `/player honors achievements` | Achievement |
-| `/player honors claim achievement:appearances-10` | Claim achievement |
+| `/player career start position:FW` | Membuat profil |
+| `/player career profile` · `next-week` · `match` · `league` | Hub, weekly update, match, klasemen |
+| `/player career injury action:view\|basic-treatment\|expert-treatment` | Recovery |
+| `/player career contract action:view\|sign` | Kontrak |
+| `/player career daily` · `champions action:status\|play` · `retire` · `rebirth` | Daily, Champions, pensiun, rebirth |
+| `/player training train ability:technique` | Regular Training |
+| `/player training skills` · `train-skill skill:shots` · `assign-exp skill:shots amount:10` | Detailed skill & EXP |
+| `/player training trick action:list\|train trick_id:<id>` · `trainer action:list\|hire\|release` · `culture subject:science` | Trick, trainer, culture |
+| `/player club overview` · `list league:1011` · `join club_id:<id>` · `squad` · `standings` | Club atlet & transfer |
+| `/player honors list` · `world-footballer` · `achievements` · `claim achievement:<id>` | Honors |
 
 ### Coach fallback
 
 ```text
 /coach career action:start|status
-/coach profile
-/coach round
-/coach exp ability:formation amount:10
-/coach event choice:<id>
-/coach formation id:4-3-3
-/coach tactic id:balanced
+/coach profile | round | event choice:<id> | exp ability:<id> amount:<n>
+/coach formation id:4-3-3 | tactic id:balanced
 /coach job action:generate|list|accept|decline offer_id:<id>
 /coach champions action:status|play
-/coach retire
-/coach rebirth
+/coach retire | rebirth
 ```
 
 ### Versus fallback
 
 ```text
-/versus home
-/versus profile
-/versus roster
-/versus standings
-/versus round
-/versus season action:status|settle
-/versus join group_code:<CODE>
-/versus bid listing_id:<id> amount:<coin>
+/versus home | profile | roster | standings
+/versus join group_code:<CODE>          (private group)
+/versus bid listing_id:<id> [amount:<coin>]
+/versus lineup battle_id:<id> lineup:<ids> captain:<id> formation:<f> tactic:<t> roster_version:<n> [substitutes:<ids>]
 ```
 
-Lineup fallback membutuhkan battle ID, lineup player IDs, captain, formation, tactic, dan roster version. Button Lineup lebih aman karena membantu validasi context tersebut.
+`/versus round` dan `/versus season` hanya menampilkan status: round dan season diproses otomatis saat deadline.
 
 ---
 
@@ -580,13 +244,9 @@ Lineup fallback membutuhkan battle ID, lineup player IDs, captain, formation, ta
 
 ### 7.1 Environment minimum
 
-Salin environment file:
-
 ```bash
 cp .env.example .env
 ```
-
-Isi minimal:
 
 ```env
 DISCORD_TOKEN=...
@@ -596,7 +256,7 @@ ADMIN_USER_IDS=discord_user_id_admin
 REGISTER_FALLBACK_COMMANDS=false
 ```
 
-`DISCORD_GUILD_ID` direkomendasikan saat development karena command guild diperbarui lebih cepat daripada global command.
+Jangan pernah commit `.env` atau mencetak token ke log.
 
 ### 7.2 Development mode JSON
 
@@ -607,166 +267,103 @@ pnpm commands:register
 pnpm dev
 ```
 
-Tanpa `DATABASE_URL`, bot memakai JSON store pada `DATA_FILE`.
-
-Jangan memakai JSON store sebagai persistence utama untuk deployment multi-instance.
+Tanpa `DATABASE_URL`, bot memakai JSON store pada `DATA_FILE`. JSON store hanya untuk satu proses (runtime lock file mencegah dua proses).
 
 ### 7.3 Production PostgreSQL
-
-Isi:
 
 ```env
 NODE_ENV=production
 DATABASE_URL=postgresql://user:password@host:5432/database
 ```
 
-Jalankan:
-
 ```bash
-pnpm db:migrate
+pnpm db:migrate     # termasuk index baru idx_player_profiles_versus_group
 pnpm build
 pnpm start
 ```
 
-Atau memakai Compose:
-
-```bash
-docker compose up -d --build
-```
-
-Untuk production, sediakan:
-
-- PostgreSQL backup;
-- secret manager untuk token dan database password;
-- restart policy;
-- monitoring dan alerting;
-- TLS untuk database managed;
-- log retention;
-- audit log command admin.
+Atau `docker compose up -d --build`. Sediakan backup, secret manager, restart policy, monitoring, TLS untuk database managed, dan log retention.
 
 ### 7.4 Registrasi command
 
-Default button-first:
-
 ```bash
-REGISTER_FALLBACK_COMMANDS=false pnpm commands:register
+REGISTER_FALLBACK_COMMANDS=false pnpm commands:register   # hanya /play
+REGISTER_FALLBACK_COMMANDS=true pnpm commands:register    # + command operator
 ```
-
-Fallback/operator commands:
-
-```bash
-REGISTER_FALLBACK_COMMANDS=true pnpm commands:register
-```
-
-Jika perubahan command belum muncul, pastikan command didaftarkan ke guild yang benar dan `DISCORD_GUILD_ID` tidak salah.
 
 ### 7.5 Admin permission
 
-`/admin` membutuhkan:
-
-1. Discord permission `Manage Guild`;
-2. user ID yang terdaftar pada `ADMIN_USER_IDS`.
-
-Command admin:
+`/admin` membutuhkan permission Discord `Manage Guild` **dan** user ID di `ADMIN_USER_IDS`.
 
 | Command | Fungsi |
 |---|---|
-| `/admin action:stats` | Melihat statistik operasi |
-| `/admin action:refresh-markets` | Refresh market seluruh profile |
+| `/admin action:stats` | Jumlah profil, Coach, club Versus, DM pending, mode persistence |
+| `/admin action:run-maintenance` | Menjalankan maintenance sekarang (memakai lock yang sama dengan worker) |
 
-Jangan menambahkan user ID admin ke source code. Gunakan environment/secret configuration.
-
-### 7.6 Maintenance dan worker
-
-Parameter penting:
+### 7.6 Worker dan parameter
 
 ```env
-MAINTENANCE_INTERVAL_MS=900000
-RATE_LIMIT_MAX=12
+MAINTENANCE_INTERVAL_MS=900000     # recovery, achievement, round/season Versus, lelang
+NOTIFICATION_INTERVAL_MS=60000     # pengiriman DM outbox
+RATE_LIMIT_MAX=30
 RATE_LIMIT_WINDOW_MS=60000
 RUNTIME_LOCK_FILE=./data/discord-bot.lock
 ```
 
-Maintenance menangani state time-based seperti:
-
-- recovery;
-- injury settlement;
-- sponsor payout;
-- Versus market expiry;
-- Versus round maintenance sesuai worker yang aktif.
-
-Pada deployment multi-instance, rate limiter dan queue sebaiknya dipindahkan dari process-local ke Redis atau database.
+- **Maintenance** melewati profil yang baru disimpan (< 2 menit) dan tidak pernah menimpa simpanan pemain (optimistic concurrency).
+- **Versus** juga diproses seketika saat ada pemain membuka panel setelah deadline, jadi hasil tidak menunggu tick worker.
+- **DM**: retry dengan backoff 1m → 5m → 30m → 2j → 6j, maksimal 5 percobaan; error permanen Discord (50007 DM ditutup, 10013 user tidak ada) langsung ditandai gagal. Worker DM dan maintenance berbagi lock sehingga instance ganda tidak mengirim DM dobel.
+- Pada PostgreSQL, maksimal 4 operasi grup Versus memegang lock bersamaan agar pool koneksi tidak habis.
 
 ### 7.7 Import data JSON lama
-
-Jika berpindah dari JSON ke PostgreSQL:
-
-1. backup file JSON;
-2. isi `DATABASE_URL`;
-3. set `DATA_FILE` ke file sumber;
-4. jalankan migration;
-5. jalankan import;
-6. jalankan test smoke melalui `/play`.
 
 ```bash
 pnpm db:migrate
 pnpm db:import-json
 ```
 
-### 7.8 Test dan release checklist
+Save versi sebelumnya dimigrasikan otomatis saat dipakai: kontrak lama berbasis waktu tetap berlaku; statistik season dibuat; club Versus pada skala grade lama dimulai ulang di Liga E (season lama yang sedang berjalan tetap diselesaikan, tanpa promosi ganda).
 
-Sebelum release:
+### 7.8 Test dan release checklist
 
 ```bash
 pnpm build
 pnpm test
+pnpm exec tsx tools/targeted-audit.ts
+SIM_TRIALS=50 pnpm exec tsx tools/stress-simulation.ts
 ```
 
-Pastikan:
-
-- seluruh test lulus;
-- tidak ada perubahan tidak ter-commit;
-- database backup berhasil;
-- `DISCORD_TOKEN` tidak masuk git;
-- `ADMIN_USER_IDS` benar;
-- command registry sesuai mode button-first/fallback;
-- satu user dapat membuat Player, Coach, dan Versus tanpa state leak;
-- weekly cycle dapat melewati event, match, dan EXP allocation;
-- transfer club menampilkan preview sebelum konfirmasi;
-- market dan ledger tidak menghasilkan double settlement.
+Pastikan seluruh test lulus, audit PASS, backup database berhasil, `.env` tidak masuk git, dan `ADMIN_USER_IDS` benar.
 
 ### 7.9 Troubleshooting
 
 | Masalah | Pemeriksaan |
 |---|---|
 | `/play` tidak muncul | Jalankan `pnpm commands:register`, cek token/client ID/guild ID |
-| Tombol tidak merespons | Pastikan bot process hidup; buka `/play` baru; jangan pakai pesan lama |
-| User lain tidak dapat memakai tombol | Ini normal; komponen owner-bound |
-| Match tidak dapat dimainkan | Cek stage, event pending, injury, HP, dan Energy |
-| EXP tidak dapat lanjut | Pending EXP harus dialokasikan dahulu |
-| `/admin` ditolak | Cek Manage Guild dan `ADMIN_USER_IDS` |
-| Data hilang setelah restart | Gunakan PostgreSQL atau pastikan `DATA_FILE` writable dan ter-backup |
-| Global command terlambat muncul | Gunakan guild registration saat testing |
-| Transfer gagal | Cek official club ID, saldo money, dan apakah pemain sudah berada di klub tersebut |
+| Tombol tidak merespons | Pastikan proses bot hidup; buka `/play` baru |
+| User lain tidak dapat memakai tombol | Normal; komponen terikat pemilik |
+| "Round sudah berganti" saat lineup | Round sudah diproses; buka ulang Lineup dari Versus Home |
+| Tidak menerima DM Versus | Cek tombol DM: On, pengaturan privasi DM server, dan `/admin action:stats` (DM pending) |
+| "Data berubah di proses lain" | Aksi bertabrakan dengan worker 3x berturut-turut; ulangi aksi |
+| Match tidak dapat dimainkan | Cek stage (event/EXP pending), cedera, skors |
+| Transfer gagal | Cek transfer window, rating minimal klub, dan saldo |
 
 ---
 
 ## 8. Aturan fairness dan batas desain
 
-- Jangan mengklaim balance reconstructed sebagai data resmi game asli.
-- Jangan mengaktifkan mechanic yang hanya memiliki nama UI tetapi belum memiliki effect/persistence yang terkalibrasi.
-- Jangan mencampur Player, Coach, dan Versus aggregate.
+- Jangan mengklaim balance reconstructed sebagai data resmi game asli; gunakan label `RECOVERY_INFERRED`.
+- Jangan mencampur Player, Coach, dan Versus aggregate; Versus tidak memakai wallet/roster Player/Coach dan tidak punya transfer club atau pemilih negara.
+- Semua notifikasi gameplay Versus lewat DM user.
+- Promosi Versus baru dianggap selesai setelah Next Season membuat season baru di liga tujuan.
 - Jangan menghapus data player tanpa backup dan prosedur migrasi.
-- Jangan memberi akses admin hanya berdasarkan nama Discord; gunakan Discord user ID.
-- Jangan membuat tombol yang melewati state penting secara diam-diam.
 
 ---
 
 ## 9. Referensi proyek
 
 - `README.md` — overview proyek dan operasi lokal
+- `docs/AUDIT_FIX_REPORT_2026-10-18.md` — temuan audit, perbaikan, dan verifikasi
+- `docs/AI_HANDOFF_FOOTBALL_RISING_STAR_DISCORD_2026-10-16.md` — handoff (lihat bagian pembaruan 2026-10-18)
 - `docs/DISCORD_COMMAND_LAYOUT.md` — kontrak button-first
-- `docs/PLAYER_WEEKLY_EVENTS.md` — event Player mingguan
-- `docs/TECHNICAL_GAMEPLAY_STATE_MATRIX_2026-08-26.md` — parity matrix dan batas evidence
-- `docs/FOOTBALL_RISING_STAR_GAMEPLAY_RESEARCH_2026-10-11.md` — riset gameplay game asli
-- `test/weekly-ui-integration.test.ts` — simulasi weekly UI/state flow
+- `test/handlers-flow.test.ts` — alur tombol end-to-end ketiga mode

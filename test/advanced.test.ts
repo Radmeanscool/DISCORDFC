@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { GAME_BALANCE, assertBalance } from '../src/config/game-balance.js';
 import { claimAchievement, formatAchievements, playChampionsLeague, startChampionsLeague, syncAchievements } from '../src/domain/competition-engine.js';
-import { getContractStatus, renewContract, signContract } from '../src/domain/contract-engine.js';
+import { advanceContractSeason, getContractStatus, payWeeklySalary, renewContract, signContract } from '../src/domain/contract-engine.js';
 import { createInitialProfile, SeededRandom } from '../src/domain/engine.js';
 import { UserRateLimiter } from '../src/discord/rate-limit.js';
 
@@ -11,14 +11,36 @@ test('balance configuration is valid and explicit about provenance', () => {
   assert.equal(GAME_BALANCE.source, 'RECOVERY_INFERRED');
 });
 
-test('contract can be signed and expires by time', () => {
-  const profile = createInitialProfile('contract-1', 'Contract', 'FW');
-  const signed = signContract(profile, new Date('2026-01-01T00:00:00.000Z'), 10);
+test('contracts run in game seasons, renew in the last season, and pay weekly salary', () => {
+  const now = new Date('2026-01-01T00:00:00.000Z');
+  const profile = createInitialProfile('contract-1', 'Contract', 'FW', now);
+  const signed = signContract(profile, now, 2);
   assert.equal(signed.contract?.state, 'ACTIVE');
-  const expired = getContractStatus(signed, new Date('2026-01-12T00:00:00.000Z'));
-  assert.equal(expired?.state, 'EXPIRED');
-  const renewed = renewContract(signed, new Date('2026-01-12T00:00:00.000Z'), 30);
-  assert.equal(renewed.contract?.state, 'ACTIVE');
+  assert.equal(signed.contract?.seasonsRemaining, 2);
+  // Real time alone never expires a game-time contract.
+  assert.equal(getContractStatus(signed, new Date('2030-01-01T00:00:00.000Z'))?.state, 'ACTIVE');
+  assert.throws(() => renewContract(signed, now), /masih berlaku 2 season/);
+
+  const paid = structuredClone(signed);
+  assert.match(payWeeklySalary(paid, now) ?? '', /Gaji mingguan/);
+  assert.equal(paid.money, signed.money + signed.contract!.salary);
+
+  const lastSeason = structuredClone(signed);
+  assert.match(advanceContractSeason(lastSeason) ?? '', /tersisa 1 season/);
+  const renewed = renewContract(lastSeason, now);
+  assert.equal(renewed.contract?.type, 'RENEWAL');
+  assert.equal(renewed.contract?.seasonsRemaining, 2);
+
+  const expired = structuredClone(lastSeason);
+  assert.match(advanceContractSeason(expired) ?? '', /berakhir/);
+  assert.equal(expired.contract?.state, 'EXPIRED');
+  assert.equal(payWeeklySalary(expired, now), undefined);
+
+  // Legacy real-time contracts (no season term) keep their old time-based expiry.
+  const legacy = structuredClone(signed);
+  delete legacy.contract!.seasonsRemaining;
+  legacy.contract!.endTime = '2026-01-05T00:00:00.000Z';
+  assert.equal(getContractStatus(legacy, new Date('2026-01-06T00:00:00.000Z'))?.state, 'EXPIRED');
 });
 
 test('champions league starts only after qualification and can be played', () => {

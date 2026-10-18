@@ -1,21 +1,33 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createInitialProfile, SeededRandom } from '../src/domain/engine.js';
-import { ensureClubState, formatClubStanding, getClubRating, playClubMatch, setClubFormation, setClubTactic } from '../src/domain/club-engine.js';
-import { joinOfficialClub, listOfficialClubs } from '../src/domain/official-club-engine.js';
-import { buyMarketPlayer, claimDailyReward, refreshMarket, sellClubPlayer } from '../src/domain/progression-engine.js';
+import { ensureClubState, formatClubStanding, getClubRating, MINIMUM_ROSTER_DEPTH, playClubMatch, setClubFormation, setClubTactic } from '../src/domain/club-engine.js';
+import type { ClubPlayer } from '../src/domain/types.js';
 
-test('official club data exposes league 1011 and supports club transfer', () => {
+/** Recovered rosters are incomplete, so clubs are topped up to a fieldable depth per position. */
+function assertFieldableRoster(roster: ClubPlayer[] | undefined): void {
+  assert.ok(roster && roster.length >= 16);
+  for (const [position, minimum] of Object.entries(MINIMUM_ROSTER_DEPTH)) assert.ok(roster!.filter((player) => player.position === position).length >= minimum, `${position} depth`);
+  assert.equal(roster!.filter((player) => player.isUserPlayer).length, 1);
+}
+import { createCoachCareer } from '../src/domain/coach-career-engine.js';
+import { joinOfficialClub, listEligibleClubs, listOfficialClubs, officialClubMinimumRating } from '../src/domain/official-club-engine.js';
+import { buyCoachPlayer, claimDailyReward, refreshCoachMarket, sellableCoachPlayers, sellCoachPlayer } from '../src/domain/progression-engine.js';
+
+test('official club data exposes league 1011 and transfers only to clubs that accept the rating', () => {
   const clubs = listOfficialClubs(1011);
   assert.equal(clubs.length >= 10, true);
   let profile = ensureClubState(createInitialProfile('transfer-1', 'Transfer', 'FW'));
   profile.money = 20_000;
-  const target = clubs.find((club) => club.nameEn !== profile.club)!;
+  const elite = [...clubs].sort((a, b) => officialClubMinimumRating(b.id) - officialClubMinimumRating(a.id))[0];
+  assert.throws(() => joinOfficialClub(profile, elite.id, new Date('2026-01-01T00:00:00.000Z')), /membutuhkan rating minimal/);
+  const target = listEligibleClubs(profile)[0];
+  assert.ok(target, 'a 15-year-old should have at least one eligible club');
   profile = joinOfficialClub(profile, target.id, new Date('2026-01-01T00:00:00.000Z'));
   assert.equal(profile.clubState?.officialId, target.id);
   assert.equal(profile.clubState?.provenance, 'RECOVERY_VERIFIED');
-  assert.equal(profile.ledger?.[0]?.type, 'TRANSFER_FEE');
-  assert.equal(profile.ledger?.[0]?.amount, -Math.max(250, Math.round(target.salaryBase / 100)));
+  assert.equal(profile.contract?.type, 'TRANSFER');
+  assert.equal(profile.ledger?.some((entry) => entry.type === 'TRANSFER_FEE' && entry.amount === -Math.max(250, Math.round(target.salaryBase / 100))), true);
 });
 
 test('recovery data seeds an official club and roster names', () => {
@@ -23,13 +35,13 @@ test('recovery data seeds an official club and roster names', () => {
   const starter = listOfficialClubs(1011).find((club) => club.nameEn === profile.club)!;
   assert.equal(starter.grade >= 3, true);
   assert.equal(profile.clubState?.provenance, 'RECOVERY_VERIFIED');
-  assert.equal(profile.clubState?.roster.length, 16);
+  assertFieldableRoster(profile.clubState?.roster);
 });
 
 test('club state creates a roster and can change formation and tactic', () => {
   const profile = createInitialProfile('club-1', 'Club Owner', 'MF');
   let enriched = ensureClubState(profile, new Date('2026-01-01T00:00:00.000Z'), new SeededRandom(5));
-  assert.equal(enriched.clubState?.roster.length, 16);
+  assertFieldableRoster(enriched.clubState?.roster);
   enriched = setClubFormation(enriched, '4-3-3');
   enriched = setClubTactic(enriched, 'attacking');
   assert.equal(enriched.clubState?.formation, '4-3-3');
@@ -87,14 +99,22 @@ test('Player profile does not create an unsupported daily event state', () => {
   assert.equal(Object.hasOwn(profile, 'event'), false);
 });
 
-test('market refresh supports buying and selling non-user players', () => {
-  let profile = ensureClubState(createInitialProfile('market-1', 'Market', 'DF'), new Date('2026-01-01T00:00:00.000Z'), new SeededRandom(4));
-  profile.money = 5_000;
-  profile = refreshMarket(profile, new Date('2026-01-01T00:00:00.000Z'));
-  assert.throws(() => refreshMarket(profile, new Date('2026-01-01T01:00:00.000Z')), /refresh lagi/);
-  const listing = profile.market![0];
-  const bought = buyMarketPlayer(profile, listing.id, new Date('2026-01-01T01:00:00.000Z'));
-  assert.equal(bought.profile.clubState?.roster.some((player) => player.id === listing.player.id), true);
-  const sold = sellClubPlayer(bought.profile, listing.player.id, new Date('2026-01-01T02:00:00.000Z'));
+test('Coach transfer market refreshes once per round and trades with club assets', () => {
+  const now = new Date('2026-01-01T00:00:00.000Z');
+  let profile = createCoachCareer(createInitialProfile('market-1', 'Market', 'DF', now), 'Market Coach', now, new SeededRandom(4));
+  profile = refreshCoachMarket(profile, now, new SeededRandom(5));
+  assert.throws(() => refreshCoachMarket(profile, now, new SeededRandom(6)), /round ini/);
+  const listing = profile.coachMarket!.listings[0];
+  profile.coachClubState!.assets = listing.price + 1;
+  const bought = buyCoachPlayer(profile, listing.id, now);
+  assert.equal(bought.profile.coachClubState?.roster.some((player) => player.id === listing.player.id), true);
+  assert.equal(bought.profile.coachClubState?.assets, 1);
+  // Player Mode club and money are untouched by Coach trading.
+  assert.equal(bought.profile.money, profile.money);
+  assert.equal(bought.profile.clubState?.roster.some((player) => player.id === listing.player.id) ?? false, false);
+  const sellable = sellableCoachPlayers(bought.profile);
+  assert.ok(sellable.length > 0);
+  const sold = sellCoachPlayer(bought.profile, sellable[0].id, now);
   assert.equal(sold.price > 0, true);
+  assert.equal(sold.profile.coachClubState!.assets, 1 + sold.price);
 });

@@ -1,10 +1,42 @@
 import { Pool } from 'pg';
 import type { PoolClient } from 'pg';
 import type { PlayerProfile } from '../domain/types.js';
-import type { BatchPlayerStore, MaintenanceLockStore, PlayerStore, VersusGroupLockStore } from './json-store.js';
+import type { BatchPlayerStore, MaintenanceLockStore, PlayerStore, VersusGroupLockStore, VersusQueryStore } from './json-store.js';
+import { ConcurrentProfileUpdateError } from './errors.js';
 
-export class PostgresPlayerStore implements BatchPlayerStore, VersusGroupLockStore, MaintenanceLockStore {
-  constructor(private readonly pool: Pool) {}
+/** FIFO counting semaphore. */
+class Semaphore {
+  private active = 0;
+  private readonly waiting: Array<() => void> = [];
+
+  constructor(private readonly limit: number) {}
+
+  async acquire(): Promise<() => void> {
+    if (this.active >= this.limit) await new Promise<void>((resolve) => this.waiting.push(resolve));
+    else this.active += 1;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const next = this.waiting.shift();
+      // Hand the slot straight to the next waiter; otherwise free it.
+      if (next) next();
+      else this.active -= 1;
+    };
+  }
+}
+
+export class PostgresPlayerStore implements BatchPlayerStore, VersusGroupLockStore, MaintenanceLockStore, VersusQueryStore {
+  /**
+   * A group lock pins one pool client for its whole read-modify-write while the
+   * work itself needs other clients, so lock holders are capped below the pool
+   * size; otherwise a burst of Versus actions could exhaust the pool and stall.
+   */
+  private readonly groupLockSlots: Semaphore;
+
+  constructor(private readonly pool: Pool, maxConcurrentGroupLocks = 4) {
+    this.groupLockSlots = new Semaphore(Math.max(1, maxConcurrentGroupLocks));
+  }
 
   async get(userId: string): Promise<PlayerProfile | undefined> {
     const result = await this.pool.query<{ payload: PlayerProfile; version: number }>('SELECT payload, version FROM player_profiles WHERE user_id = $1', [userId]);
@@ -19,7 +51,7 @@ export class PostgresPlayerStore implements BatchPlayerStore, VersusGroupLockSto
     await this.saveBatch([profile]);
   }
 
-  private async syncVersusProjection(client: PoolClient, profile: PlayerProfile): Promise<void> {
+  private async syncVersusProjection(client: PoolClient, profile: PlayerProfile, projectedSeasons: Set<string>): Promise<void> {
     const versus = profile.versus;
     if (!versus) return;
 
@@ -39,7 +71,9 @@ export class PostgresPlayerStore implements BatchPlayerStore, VersusGroupLockSto
     }
 
     const season = versus.season;
-    if (season) {
+    // Every member carries the same season copy; project its battles and listings once per batch.
+    if (season && !projectedSeasons.has(season.id)) {
+      projectedSeasons.add(season.id);
       for (const battle of season.battles) {
         await client.query(
           `INSERT INTO versus_matches (match_id, season_id, group_code, round_id, scheduled_at, home_club_id, away_club_id, state, ruleset_version, updated_at)
@@ -78,21 +112,24 @@ export class PostgresPlayerStore implements BatchPlayerStore, VersusGroupLockSto
       seen.add(profile.userId);
     }
     const client = await this.pool.connect();
+    const projectedSeasons = new Set<string>();
+    const versions = new Map<PlayerProfile, number>();
     try {
       await client.query('BEGIN');
       for (const profile of profiles) {
         const expectedVersion = profile.version ?? 0;
         const result = await client.query<{ version: number }>(
+          // A first insert also bumps the version, so two concurrent creators of one profile conflict instead of overwriting.
           `INSERT INTO player_profiles (user_id, payload, updated_at, version)
-           VALUES ($1, $2::jsonb, $3::timestamptz, $4)
+           VALUES ($1, $2::jsonb, $3::timestamptz, $4::integer + 1)
            ON CONFLICT (user_id) DO UPDATE
            SET payload = EXCLUDED.payload, updated_at = EXCLUDED.updated_at, version = player_profiles.version + 1
-           WHERE player_profiles.version = $4
+           WHERE player_profiles.version = $4::integer
            RETURNING version`,
           [profile.userId, JSON.stringify(profile), profile.updatedAt, expectedVersion]
         );
-        if (result.rowCount !== 1) throw new Error(`Concurrent profile update detected for ${profile.userId}. Silakan ulangi command.`);
-        profile.version = result.rows[0].version;
+        if (result.rowCount !== 1) throw new ConcurrentProfileUpdateError(profile.userId);
+        versions.set(profile, result.rows[0].version);
         await client.query('DELETE FROM economy_ledger WHERE user_id = $1', [profile.userId]);
         if (profile.ledger?.length) {
           await client.query(
@@ -112,9 +149,11 @@ export class PostgresPlayerStore implements BatchPlayerStore, VersusGroupLockSto
             [profile.userId, JSON.stringify(profile.versus.ledger)]
           );
         }
-        await this.syncVersusProjection(client, profile);
+        await this.syncVersusProjection(client, profile, projectedSeasons);
       }
       await client.query('COMMIT');
+      // Versions change only after COMMIT, so a rolled-back batch leaves callers' copies untouched.
+      for (const [profile, version] of versions) profile.version = version;
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -133,21 +172,38 @@ export class PostgresPlayerStore implements BatchPlayerStore, VersusGroupLockSto
   }
 
   async withVersusGroupLock<T>(groupCode: string, operation: () => Promise<T>): Promise<T> {
-    const client = await this.pool.connect();
+    const releaseSlot = await this.groupLockSlots.acquire();
     try {
-      await client.query('SELECT pg_advisory_lock(hashtextextended($1, 0))', [groupCode]);
-      return await operation();
-    } finally {
+      const client = await this.pool.connect();
       try {
-        await client.query('SELECT pg_advisory_unlock(hashtextextended($1, 0))', [groupCode]);
+        await client.query('SELECT pg_advisory_lock(hashtextextended($1, 0))', [groupCode]);
+        return await operation();
       } finally {
-        client.release();
+        try {
+          await client.query('SELECT pg_advisory_unlock(hashtextextended($1, 0))', [groupCode]);
+        } finally {
+          client.release();
+        }
       }
+    } finally {
+      releaseSlot();
     }
   }
 
   async all(): Promise<PlayerProfile[]> {
     const result = await this.pool.query<{ payload: PlayerProfile; version: number }>('SELECT payload, version FROM player_profiles ORDER BY updated_at DESC');
+    return result.rows.map((row) => {
+      const profile = structuredClone(row.payload);
+      profile.version = row.version ?? profile.version ?? 0;
+      return profile;
+    });
+  }
+
+  async versusMembers(filter: { groupCode?: string; prefix?: string }): Promise<PlayerProfile[]> {
+    // Equality uses idx_player_profiles_versus_group; left() keeps prefix matching free of LIKE wildcards.
+    const result = filter.groupCode !== undefined
+      ? await this.pool.query<{ payload: PlayerProfile; version: number }>("SELECT payload, version FROM player_profiles WHERE payload->'versus'->>'groupCode' = $1", [filter.groupCode])
+      : await this.pool.query<{ payload: PlayerProfile; version: number }>("SELECT payload, version FROM player_profiles WHERE payload->'versus'->>'groupCode' IS NOT NULL AND left(payload->'versus'->>'groupCode', char_length($1)) = $1", [filter.prefix ?? '']);
     return result.rows.map((row) => {
       const profile = structuredClone(row.payload);
       profile.version = row.version ?? profile.version ?? 0;

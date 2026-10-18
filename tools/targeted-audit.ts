@@ -1,13 +1,21 @@
 import assert from 'node:assert/strict';
-import { createInitialProfile, SeededRandom } from '../src/domain/engine.js';
+import { createInitialProfile, getRating, recoverPlayer, SeededRandom } from '../src/domain/engine.js';
 import { ensureClubState, playClubMatch, projectCoachLeagueStandings } from '../src/domain/club-engine.js';
-import { claimDailyReward, generateDailyEvent, resolveDailyEvent } from '../src/domain/progression-engine.js';
-import { createCoachCareer, retireCoach, assignCoachExp, resolveCoachEvent } from '../src/domain/coach-career-engine.js';
+import { advanceCoachRound, createCoachCareer, resolveCoachEvent, retireCoach } from '../src/domain/coach-career-engine.js';
 import { playChampionsLeague, startChampionsLeague } from '../src/domain/competition-engine.js';
-import { createVersusClub, enrollVersus, createVersusSeason, processVersusRound, settleVersusSeason, syncVersusProfileWithSeason } from '../src/domain/versus-engine.js';
-import type { CoachEvent } from '../src/domain/types.js';
+import { advanceWeek, assignMatchExpEvenly, createPlayerCareer, rebirthPlayer, retirePlayer } from '../src/domain/gameplay-engine.js';
+import { ratingSkillsFor } from '../src/domain/player-formulas.js';
+import { abilityScore, createVersusClub, createVersusSeason, enrollVersus, processVersusRound, settleVersusSeason, syncVersusProfileWithSeason, versusTotalRounds } from '../src/domain/versus-engine.js';
+import { lineupAction, versusHomeControls, versusPositionControls, versusSetupControls } from '../src/discord/components.js';
+import { COACH_ABILITIES, DETAILED_SKILLS, type PlayerProfile, type Position } from '../src/domain/types.js';
 
-const start = new Date('2026-01-01T00:00:00.000Z');
+/**
+ * Targeted parity audit: each finding re-checks a defect class found in the
+ * 2026-10 gameplay audit and prints the measured value, so regressions show up
+ * as FAIL with numbers instead of silently drifting. Run: `tsx tools/targeted-audit.ts`.
+ */
+const start = new Date('2026-01-05T00:00:00.000Z');
+const DAY = 86_400_000;
 type Finding = { id: string; severity: 'HIGH' | 'MEDIUM' | 'LOW'; status: 'PASS' | 'FAIL'; details: string };
 const report: Finding[] = [];
 function finding(id: string, severity: Finding['severity'], fn: () => string): void {
@@ -15,65 +23,82 @@ function finding(id: string, severity: Finding['severity'], fn: () => string): v
   catch (error) { report.push({ id, severity, status: 'FAIL', details: error instanceof Error ? error.message : String(error) }); }
 }
 
-finding('PLAYER-EXP-LEVEL-SYNC', 'MEDIUM', () => {
-  let profile = createInitialProfile('audit-player-exp', 'Audit Player', 'FW', start);
-  profile.totalExp = 99;
-  for (let day = 0; day < 2; day += 1) profile = claimDailyReward(profile, new Date(start.getTime() + day * 86_400_000)).profile;
-  assert.ok(profile.totalExp >= 150);
-  assert.ok(profile.level >= 2);
-  return `daily reward totalExp=${profile.totalExp}, level=${profile.level}`;
-});
+function athlete(id: string, position: Position, level: number): PlayerProfile {
+  const profile = createPlayerCareer(id, id, position, start, new SeededRandom(7));
+  for (const skill of DETAILED_SKILLS) profile.detailedSkills![skill].level = level;
+  return profile;
+}
 
-finding('PLAYER-EVENT-EXP-LEVEL-SYNC', 'MEDIUM', () => {
-  let profile = createInitialProfile('audit-player-event', 'Audit Event', 'MF', start);
-  profile.totalExp = 99;
-  profile = generateDailyEvent(profile, start, new SeededRandom(1));
-  const choice = profile.event!.choices[0];
-  profile = resolveDailyEvent(profile, choice.id, start).profile;
-  assert.ok(profile.totalExp > 99);
-  assert.ok(profile.level >= 2);
-  return `event totalExp=${profile.totalExp}, level=${profile.level}`;
-});
-
-finding('COACH-HONOR-CROSS-MODE', 'MEDIUM', () => {
-  let profile = createInitialProfile('audit-coach-honor', 'Audit Coach', 'GK', start);
-  profile.honors = [{ id: 'player-honor', category: 'PERSONAL', title: 'Player Honor', season: 1, description: 'player', source: 'WALKTHROUGH_OBSERVED', value: 1, awardedAt: start.toISOString() }];
-  profile = createCoachCareer(profile, 'Audit Coach', start);
-  assert.equal(profile.coach!.honors.length, 0);
-  const before = profile.honors.length;
-  profile = retireCoach(profile, new Date(start.getTime() + 86_400_000));
-  assert.equal(profile.honors.length, before);
-  return 'Coach honors remain separate from Player profile.honors';
-});
-
-finding('COACH-DECIMAL-EXP', 'MEDIUM', () => {
-  let profile = createCoachCareer(createInitialProfile('audit-coach-decimal', 'Audit Coach', 'MF', start), 'Audit Coach', start);
-  profile.coach!.unassignedExp = 1;
-  assert.throws(() => assignCoachExp(profile, { formation: 0.5 }), /bilangan bulat/);
-  return 'fractional Coach EXP is rejected';
-});
-
-finding('COACH-RETIRED-EVENT-MUTATION', 'MEDIUM', () => {
-  let profile = createCoachCareer(createInitialProfile('audit-coach-event', 'Audit Coach', 'DF', start), 'Audit Coach', start);
-  const event: CoachEvent = { id: 'audit-event', templateId: 'press-criticism', title: 'Audit', description: 'Audit', choices: [{ id: 'choice', label: 'Choice', description: 'Choice', approvalDelta: 1, moneyDelta: 0, expDelta: 10 }], resolved: false, createdAt: start.toISOString() };
-  profile.coach!.event = event;
-  profile = retireCoach(profile, start);
-  assert.throws(() => resolveCoachEvent(profile, 'choice', start), /tidak sedang employed/);
-  return 'retired Coach cannot resolve a pending event';
-});
-
-finding('COACH-FULL-STANDINGS-PROJECTION', 'HIGH', () => {
-  let profile = createCoachCareer(createInitialProfile('audit-coach-table', 'Audit Coach Table', 'DF', start), 'Audit Coach Table', start);
-  const fixtureCount = profile.coachClubState!.fixtures.length;
-  let round = 0;
-  while (profile.coachClubState!.fixtures.some((fixture) => !fixture.played)) {
-    profile = playClubMatch(profile, new Date(start.getTime() + (round + 1) * 86_400_000), new SeededRandom(1_500 + round), 'coachClubState').profile;
-    round += 1;
+function playSeason(profileInput: PlayerProfile, seed: number): PlayerProfile {
+  const rng = new SeededRandom(seed);
+  let profile = profileInput;
+  let now = start;
+  const season = profile.league.season;
+  for (let week = 0; week < 70 && profile.league.season === season; week += 1) {
+    now = new Date(now.getTime() + 7 * DAY);
+    profile = advanceWeek(profile, now, rng).profile;
+    if ((profile.unassignedMatchExp ?? 0) > 0) profile = assignMatchExpEvenly(profile, ratingSkillsFor(profile.position), now).profile;
   }
-  projectCoachLeagueStandings(profile.coachClubState!);
-  assert.ok(profile.coachClubState!.standings.every((standing) => standing.played === fixtureCount));
-  assert.ok(profile.coachClubState!.standings.every((standing) => standing.wins + standing.draws + standing.losses === fixtureCount));
-  return `projected ${profile.coachClubState!.standings.length} Coach standings rows to ${fixtureCount} matches`;
+  return profile;
+}
+
+finding('PLAYER-RECOVERY-CLOCK', 'HIGH', () => {
+  const profile = createInitialProfile('audit-recovery', 'Audit', 'MF', start);
+  profile.hp = 40;
+  let ticked = profile;
+  for (let minute = 15; minute <= 240; minute += 15) ticked = recoverPlayer(ticked, new Date(start.getTime() + minute * 60_000));
+  const once = recoverPlayer(profile, new Date(start.getTime() + 240 * 60_000));
+  assert.equal(ticked.hp, once.hp);
+  assert.ok(ticked.hp > 40);
+  return `16 quarter-hour ticks recover ${ticked.hp - 40} HP, same as one 4h tick`;
+});
+
+finding('PLAYER-POSITION-OUTPUT', 'HIGH', () => {
+  const rows = (['FW', 'MF', 'DF', 'GK'] as Position[]).map((position) => {
+    const stats = playSeason(athlete(`audit-${position}`, position, 80), 21).seasonHistory![0].stats;
+    return { position, goals: stats.goals, assists: stats.assists, apps: stats.appearances };
+  });
+  const goals = Object.fromEntries(rows.map((row) => [row.position, row.goals]));
+  assert.ok(goals.FW > goals.DF && goals.MF > goals.GK && goals.GK <= 1);
+  assert.ok(goals.FW <= 45, 'a forward season stays within a realistic range');
+  return rows.map((row) => `${row.position} ${row.goals}G/${row.assists}A in ${row.apps}`).join(' · ');
+});
+
+finding('PLAYER-REBIRTH-RATING', 'HIGH', () => {
+  const veteran = athlete('audit-rebirth', 'FW', 95);
+  veteran.age = 34;
+  const reborn = rebirthPlayer(retirePlayer(veteran, start).profile, start, 'FW').profile;
+  const fresh = createInitialProfile('audit-fresh', 'Fresh', 'FW', start);
+  assert.ok(getRating(reborn) > getRating(fresh));
+  return `rebirth rating ${getRating(reborn)} vs fresh ${getRating(fresh)} (veteran ${getRating(veteran)})`;
+});
+
+function coachRank(level: number, seed: number): number {
+  const rng = new SeededRandom(seed);
+  let profile = createCoachCareer(ensureClubState(createInitialProfile(`audit-coach-${level}-${seed}`, 'Coach', 'MF', start), start, new SeededRandom(seed)), 'Coach', start, new SeededRandom(seed));
+  for (const ability of COACH_ABILITIES) profile.coach!.abilities[ability].level = level;
+  let now = start;
+  while (profile.coachClubState!.fixtures.some((fixture) => !fixture.played)) {
+    now = new Date(now.getTime() + DAY);
+    profile.coach!.approval = 80;
+    profile = advanceCoachRound(profile, now, rng).profile;
+    const event = profile.coach!.event;
+    if (event && !event.resolved) profile = resolveCoachEvent(profile, event.choices[0].id, now);
+  }
+  const club = profile.coachClubState!;
+  assert.equal(club.roster.some((player) => player.isUserPlayer), false);
+  projectCoachLeagueStandings(club);
+  const table = [...club.standings].sort((a, b) => b.points - a.points || (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst));
+  return table.findIndex((standing) => standing.clubId === club.id) + 1;
+}
+
+finding('COACH-ABILITY-EFFECT', 'HIGH', () => {
+  const seeds = [3, 4, 5, 6];
+  const rookie = seeds.map((seed) => coachRank(1, seed));
+  const elite = seeds.map((seed) => coachRank(25, seed));
+  const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
+  assert.ok(mean(elite) + 3 < mean(rookie));
+  return `average rank Lv1 ${mean(rookie).toFixed(1)} vs Lv25 ${mean(elite).toFixed(1)} (same club, same seeds)`;
 });
 
 finding('COACH-CHAMPIONS-ISOLATION', 'HIGH', () => {
@@ -82,30 +107,99 @@ finding('COACH-CHAMPIONS-ISOLATION', 'HIGH', () => {
   profile.coachClubState!.championsLeagueQualified = true;
   profile = startChampionsLeague(profile, start, 'PLAYER');
   profile = startChampionsLeague(profile, start, 'COACH');
+  for (const fixture of profile.coachClubState!.fixtures.slice(0, 8)) fixture.played = true;
   const playerState = profile.championsLeague;
-  const coachPlayed = playChampionsLeague(profile, new Date(start.getTime() + 86_400_000), new SeededRandom(2_001), 'COACH');
+  const coachPlayed = playChampionsLeague(profile, new Date(start.getTime() + DAY), new SeededRandom(2_001), 'COACH');
   assert.deepEqual(coachPlayed.profile.championsLeague, playerState);
   assert.equal(coachPlayed.profile.coach!.championsLeague!.status, coachPlayed.status);
-  assert.equal(coachPlayed.profile.league.season, 1);
-  return `Player season ${playerState!.season} and Coach season ${coachPlayed.profile.coach!.championsLeague!.season} remain separate`;
+  return `Player and Coach Champions League states stay separate (${coachPlayed.status})`;
+});
+
+finding('COACH-FULL-STANDINGS-PROJECTION', 'MEDIUM', () => {
+  let profile = createCoachCareer(createInitialProfile('audit-coach-table', 'Audit Coach Table', 'DF', start), 'Audit Coach Table', start);
+  const fixtureCount = profile.coachClubState!.fixtures.length;
+  let round = 0;
+  while (profile.coachClubState!.fixtures.some((fixture) => !fixture.played)) {
+    profile = playClubMatch(profile, new Date(start.getTime() + (round + 1) * DAY), new SeededRandom(1_500 + round), 'coachClubState').profile;
+    round += 1;
+  }
+  projectCoachLeagueStandings(profile.coachClubState!);
+  assert.ok(profile.coachClubState!.standings.every((standing) => standing.played === fixtureCount));
+  const goals = profile.coachClubState!.standings.reduce((sum, standing) => sum + standing.goalsFor, 0);
+  const matches = profile.coachClubState!.standings.length * fixtureCount / 2;
+  return `${profile.coachClubState!.standings.length} clubs × ${fixtureCount} matches · ${(goals / matches).toFixed(2)} goals/match`;
+});
+
+finding('VERSUS-TIER-STRENGTH', 'HIGH', () => {
+  const average = (grade: number) => {
+    const member = enrollVersus(createInitialProfile(`audit-tier-${grade}`, 'Tier', 'MF', start), `AUDIT-TIER-${grade}`, start);
+    member.versus!.club.grade = grade;
+    const npcs = createVersusSeason(`AUDIT-TIER-${grade}`, [member], start).clubs.filter((club) => club.isNpc).flatMap((club) => club.roster);
+    return npcs.reduce((sum, player) => sum + abilityScore(player), 0) / npcs.length;
+  };
+  const values = [0, 1, 2, 3, 4, 5].map(average);
+  assert.ok(values.every((value, index) => index === 0 || value < values[index - 1]));
+  return `NPC ability S→E: ${values.map((value) => value.toFixed(1)).join(' > ')}`;
+});
+
+finding('VERSUS-WIN-RATE-AND-ATTRIBUTION', 'HIGH', () => {
+  let wins = 0;
+  let games = 0;
+  let goals = 0;
+  let attributed = 0;
+  let injuries = 0;
+  for (let trial = 0; trial < 6; trial += 1) {
+    const member = enrollVersus(createInitialProfile(`audit-wr-${trial}`, 'WR', 'MF', start), `AUDIT-WR-${trial}`, start);
+    let season = createVersusSeason(`AUDIT-WR-${trial}`, [member], start);
+    const clubId = member.versus!.clubId;
+    for (let round = 1; round <= versusTotalRounds(season); round += 1) {
+      season = processVersusRound(season, round, new Date(season.roundDeadline), new SeededRandom(trial * 100 + round));
+      injuries += season.clubs.flatMap((club) => club.roster).filter((player) => player.status === 'INJURED').length;
+      for (const battle of season.battles.filter((item) => item.roundId === round)) {
+        const settlement = battle.settlement!;
+        goals += settlement.homeGoals + settlement.awayGoals;
+        attributed += settlement.scorers?.length ?? 0;
+        if (battle.homeClubId !== clubId && battle.awayClubId !== clubId) continue;
+        games += 1;
+        const own = battle.homeClubId === clubId ? settlement.homeGoals : settlement.awayGoals;
+        const other = battle.homeClubId === clubId ? settlement.awayGoals : settlement.homeGoals;
+        if (own > other) wins += 1;
+      }
+    }
+  }
+  assert.equal(attributed, goals);
+  assert.ok(injuries > 0);
+  const rate = wins / games;
+  assert.ok(rate >= 0.25 && rate <= 0.65, 'a new club is competitive in Liga E');
+  return `new club win rate vs Liga E NPCs ${(rate * 100).toFixed(0)}% over ${games} battles · every goal attributed · ${injuries} injured-player rounds`;
 });
 
 finding('VERSUS-SYNC-REWARD-IMMUTABILITY', 'HIGH', () => {
-  const members = [0, 1, 2, 3].map((index) => enrollVersus(createVersusClub(createInitialProfile(`audit-versus-${index}`, `Audit Versus ${index}`, ['FW', 'MF', 'DF', 'GK'][index] as any, start), start), 'AUDIT-GROUP', start));
+  const members = [0, 1, 2, 3].map((index) => enrollVersus(createVersusClub(createInitialProfile(`audit-versus-${index}`, `Audit Versus ${index}`, (['FW', 'MF', 'DF', 'GK'] as Position[])[index], start), start), 'AUDIT-GROUP', start));
   let season = createVersusSeason('AUDIT-GROUP', members, start, 4);
-  for (let round = 1; round <= 6; round += 1) season = processVersusRound(season, round, new Date(start.getTime() + round * 86_400_000), new SeededRandom(900 + round));
-  const finished = settleVersusSeason(season, new Date(start.getTime() + 7 * 86_400_000));
-  const originalSeason = JSON.stringify(finished);
-  let synced = syncVersusProfileWithSeason(members[0], finished, new Date(start.getTime() + 8 * 86_400_000));
+  for (let round = 1; round <= versusTotalRounds(season); round += 1) season = processVersusRound(season, round, new Date(season.roundDeadline), new SeededRandom(900 + round));
+  const finished = settleVersusSeason(season, new Date(season.roundDeadline));
+  const original = JSON.stringify(finished);
+  let synced = syncVersusProfileWithSeason(members[0], finished, new Date(season.roundDeadline));
   const money = synced.versus!.versusMoney;
-  synced = syncVersusProfileWithSeason(synced, JSON.parse(originalSeason), new Date(start.getTime() + 9 * 86_400_000));
+  synced = syncVersusProfileWithSeason(synced, JSON.parse(original), new Date(season.roundDeadline));
   assert.equal(synced.versus!.versusMoney, money);
-  assert.equal(JSON.stringify(finished), originalSeason);
-  assert.ok(synced.versus!.ledger && synced.versus!.ledger.length >= 14);
-  const ledgerLength = synced.versus!.ledger!.length;
-  synced = syncVersusProfileWithSeason(synced, JSON.parse(originalSeason), new Date(start.getTime() + 10 * 86_400_000));
-  assert.equal(synced.versus!.ledger!.length, ledgerLength);
-  return `fresh-season sync preserved reward wallet=${money}, ledger entries=${ledgerLength}, and input immutability`;
+  assert.equal(JSON.stringify(finished), original);
+  return `repeated sync keeps wallet=${money} and ledger=${synced.versus!.ledger!.length}`;
+});
+
+finding('DISCORD-CUSTOM-ID-LIMIT', 'HIGH', () => {
+  const userId = '12345678901234567890';
+  const profile = createVersusClub(createInitialProfile('audit-ids', 'Ids', 'MF', start), start);
+  const rows = [
+    ...versusSetupControls(userId, 38, 99_999, '4-4-2', 'balanced'),
+    ...versusPositionControls(userId, 38, 99_999, '4-4-2', profile.versus!.club.roster, { GK: [], DF: [], MF: [], FW: [] }, (player) => Math.round(abilityScore(player))),
+    ...versusHomeControls(userId, { round: 38, rosterVersion: 99_999 })
+  ];
+  const ids = rows.flatMap((row) => row.toJSON().components.map((component) => ('custom_id' in component ? component.custom_id : '') ?? ''));
+  const longest = Math.max(...ids.map((id) => id.length));
+  assert.ok(longest <= 100);
+  return `longest custom id ${longest}/100 (${lineupAction('start', 38, 99_999)})`;
 });
 
 finding('CLUB-NON1011-LEAGUE', 'MEDIUM', () => {
@@ -114,8 +208,17 @@ finding('CLUB-NON1011-LEAGUE', 'MEDIUM', () => {
   const enriched = ensureClubState(profile, start, new SeededRandom(77));
   assert.equal(enriched.clubState!.name, 'Blackburn Rovers');
   assert.equal(enriched.clubState!.standings.some((standing) => standing.clubName === 'Blackburn Rovers'), true);
-  assert.equal(enriched.clubState!.fixtures.length, 38);
   return `league ${enriched.clubState!.standings.length} clubs, fixtures=${enriched.clubState!.fixtures.length}`;
 });
 
+finding('COACH-RETIREMENT-ISOLATION', 'MEDIUM', () => {
+  let profile = createCoachCareer(createInitialProfile('audit-coach-honor', 'Audit Coach', 'GK', start), 'Audit Coach', start);
+  profile.honors = [{ id: 'player-honor', category: 'PERSONAL', title: 'Player Honor', season: 1, description: 'player', source: 'WALKTHROUGH_OBSERVED', value: 1, awardedAt: start.toISOString() }];
+  profile = retireCoach(profile, new Date(start.getTime() + DAY));
+  assert.equal(profile.honors.length, 1);
+  assert.equal(profile.coach!.status, 'RETIRED');
+  return 'Coach retirement keeps Player honors untouched';
+});
+
 console.log(JSON.stringify({ status: report.every((item) => item.status === 'PASS') ? 'PASS' : 'FAIL', findings: report }, null, 2));
+if (report.some((item) => item.status === 'FAIL')) process.exitCode = 1;

@@ -1,4 +1,5 @@
 import { writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { createInitialProfile, SeededRandom, type RandomSource } from '../src/domain/engine.js';
 import { ensureClubState, projectCoachLeagueStandings } from '../src/domain/club-engine.js';
 import {
@@ -214,7 +215,21 @@ function runCoachTrial(trial: number): ModeResult {
   for (let seasonIndex = 0; seasonIndex < COACH_SEASONS; seasonIndex += 1) {
     let guard = 0;
     while (profile.coachClubState!.fixtures.some((fixture) => !fixture.played)) {
-      if (++guard > 60) throw new Error(`Coach season loop exceeded guard at trial=${trial}`);
+      if (++guard > 200) throw new Error(`Coach season loop exceeded guard at trial=${trial}`);
+      if (profile.coach!.status !== 'EMPLOYED') {
+        // Mid-season dismissal: take an open offer (or ask the agent for one) and continue at the new club.
+        const now = iso(start.getTime() + (metrics.rounds + 1) * 86_400_000);
+        let offer = profile.coach!.jobOffers.find((item) => item.status === 'OPEN');
+        if (!offer) {
+          const job = generateJobOffer(profile, rng, now);
+          profile = job.profile;
+          offer = job.offer;
+        }
+        profile = acceptJobOffer(profile, offer.id, now, rng);
+        metrics.dismissals = (metrics.dismissals ?? 0) + 1;
+        actions += 1;
+        continue;
+      }
       if (profile.coach!.event && !profile.coach!.event.resolved) {
         profile = resolveCoachEvent(profile, profile.coach.event.choices[0].id, iso(start.getTime() + (metrics.rounds + 1) * 86_400_000));
         actions += 1;
@@ -391,8 +406,9 @@ const report: FullReport = {
   status: [playerReport, coachReport, versusReport].every((mode) => mode.failedTrials === 0 && mode.invariantFailures === 0 && mode.determinismFailures === 0) ? 'PASS' : 'FAIL'
 };
 
-const jsonPath = process.env.SIM_JSON ?? '/home/ubuntu/DISCORDFC/docs/STRESS_SIMULATION_RESULTS_LATEST.json';
-const mdPath = process.env.SIM_MD ?? '/home/ubuntu/DISCORDFC/docs/STRESS_SIMULATION_REPORT_LATEST.md';
+// Default to this checkout's docs folder instead of a machine-specific absolute path.
+const jsonPath = process.env.SIM_JSON ?? fileURLToPath(new URL('../docs/STRESS_SIMULATION_RESULTS_LATEST.json', import.meta.url));
+const mdPath = process.env.SIM_MD ?? fileURLToPath(new URL('../docs/STRESS_SIMULATION_REPORT_LATEST.md', import.meta.url));
 writeFileSync(jsonPath, JSON.stringify(report, null, 2) + '\n');
 const lines = [
   '# DISCORDFC Stress Simulation Report',

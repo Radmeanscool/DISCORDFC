@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ensureClubState } from '../src/domain/club-engine.js';
-import { createInitialProfile, playMatch, SeededRandom } from '../src/domain/engine.js';
+import { createInitialProfile, getRating, playMatch, SeededRandom } from '../src/domain/engine.js';
 import { assignMatchExp, playPreparedWeek, preparePlayerWeek, resolvePlayerWeeklyEvent } from '../src/domain/gameplay-engine.js';
-import { joinOfficialClub, listOfficialClubs, officialClubTransferFee } from '../src/domain/official-club-engine.js';
+import { joinOfficialClub, listEligibleClubs, listOfficialClubs, officialClubMinimumRating, officialClubTransferFee } from '../src/domain/official-club-engine.js';
 import { pendingExpControls, playerWeeklyControls } from '../src/discord/components.js';
 
 const NOW = new Date('2026-01-01T00:00:00.000Z');
@@ -52,23 +52,33 @@ test('match telemetry remains within safe bounds and career mutation occurs once
   assert.ok(result.record.formulaVersion);
 });
 
-test('official club transfer enforces insufficient-funds and same-club guards', () => {
+test('official club transfer enforces rating, insufficient-funds, window, and same-club guards', () => {
   const base = ensureClubState(createInitialProfile('release-transfer-1', 'Transfer Guard', 'DF', NOW), NOW);
-  const target = listOfficialClubs().find((club) => club.id !== base.clubState!.officialId)!;
-  const fee = officialClubTransferFee(target.id);
+  const elite = listOfficialClubs().find((club) => club.id !== base.clubState!.officialId && officialClubMinimumRating(club.id) > getRating(base))!;
+  const rich = structuredClone(base);
+  rich.money = 1_000_000;
+  assert.throws(() => joinOfficialClub(rich, elite.id, NOW), /membutuhkan rating minimal/);
 
+  const target = listEligibleClubs(base)[0];
+  const fee = officialClubTransferFee(target.id);
   const poor = structuredClone(base);
   poor.money = fee - 1;
   assert.throws(() => joinOfficialClub(poor, target.id, NOW), /Money tidak cukup/);
 
   assert.throws(() => joinOfficialClub(base, base.clubState!.officialId!, NOW), /sudah berada di klub tersebut/);
 
+  const midSeason = structuredClone(base);
+  midSeason.money = fee;
+  midSeason.clubState!.fixtures[0].played = true;
+  assert.throws(() => joinOfficialClub(midSeason, target.id, NOW), /Transfer window tutup/);
+
   const exact = structuredClone(base);
   exact.money = fee;
   const transferred = joinOfficialClub(exact, target.id, NOW);
   assert.equal(transferred.money, 0);
   assert.equal(transferred.clubState?.officialId, target.id);
-  assert.equal(transferred.contract, undefined);
+  assert.equal(transferred.contract?.type, 'TRANSFER');
+  assert.equal(transferred.contract?.clubId, transferred.club);
   assert.equal(transferred.ledger?.[0]?.type, 'TRANSFER_FEE');
 });
 

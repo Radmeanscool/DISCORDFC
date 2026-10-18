@@ -49,7 +49,9 @@ test('Versus displays letter leagues and marks champion and runner-up promotion 
   const finished = settleVersusSeason(season, new Date('2026-02-01T00:00:00.000Z'));
   const topTwo = finished.rewards.filter((reward) => reward.rank <= 2);
   assert.equal(topTwo.length, 2);
-  assert.equal(topTwo.every((reward) => reward.promoted && reward.promotedToLeague === 'S'), true);
+  // New clubs start in the lowest tier (Liga E); rank 1–2 move up to Liga D and E has no relegation.
+  assert.equal(season.grade, 5);
+  assert.equal(topTwo.every((reward) => reward.promoted && reward.fromLeague === 'E' && reward.promotedToLeague === 'D'), true);
   assert.equal(finished.rewards.some((reward) => reward.relegated), false);
 });
 

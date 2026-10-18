@@ -1,13 +1,17 @@
 import { GAME_BALANCE } from '../config/game-balance.js';
-import { getRating, MathRandomSource, playMatch, type RandomSource } from './engine.js';
-import { detailedTrainingExpFor } from './player-formulas.js';
+import { payWeeklySalary, signContract } from './contract-engine.js';
+import { ensureClubState } from './club-engine.js';
+import { applyTimeRecovery, createInitialProfile, getRating, initialDetailedSkills, MathRandomSource, starterClubName, type RandomSource } from './engine.js';
+import { formatMoney } from './format.js';
+import { ensureSeasonTracking, finishPlayerSeason, freshSeasonStats, playPlayerFixture } from './player-match-engine.js';
+import { detailedTrainingExpFor, skillLevelCost } from './player-formulas.js';
+import { grantSkillExp, isSkillMaxed } from './skill-engine.js';
 import {
   DETAILED_SKILLS,
   DETAILED_SKILL_LABELS,
   TRAINER_CATALOG,
   TRICK_CATALOG,
   clampStat,
-  createEmptyDetailedSkills,
   deriveMacroStats,
   normalizeDetailedSkills,
   type CultureSubject,
@@ -15,20 +19,18 @@ import {
   type DetailedSkills,
   type ExpAllocationResult,
   type GameplayActionResult,
-  type HonorRecord,
   type InjurySeverity,
   type PlayerEventChoice,
   type PlayerEventType,
   type PlayerProfile,
   type PlayerSponsorContract,
   type PlayerWeeklyEvent,
+  type Position,
   type RetirementState,
   type TrainerState,
   type TreatmentResult,
-  type TrainerTier,
   type WeekPreparationResult,
-  type WeekResult,
-  type WorldFootballerState
+  type WeekResult
 } from './types.js';
 
 function clone<T>(value: T): T {
@@ -66,6 +68,7 @@ function legacyToDetailed(profile: PlayerProfile): DetailedSkills {
   return Object.fromEntries(Object.entries(values).map(([skill, level]) => [skill, { level: clampStat(level), exp: 0 }])) as DetailedSkills;
 }
 
+/** Migrates legacy saves and applies whole-hour real-time recovery before any action. */
 export function ensureGameplayState(profileInput: PlayerProfile, now = new Date()): PlayerProfile {
   const profile = clone(profileInput);
   profile.mode ??= 'PLAYER';
@@ -82,24 +85,8 @@ export function ensureGameplayState(profileInput: PlayerProfile, now = new Date(
   profile.detailedSkills = normalizeDetailedSkills(profile.detailedSkills ?? legacyToDetailed(profile), 1);
   profile.updatedAt = profile.updatedAt || iso(now);
   profile.lastActionAt = profile.lastActionAt || iso(now);
+  applyTimeRecovery(profile, now);
   return profile;
-}
-
-function nextSkillExp(level: number): number {
-  return Math.max(50, level * 100);
-}
-
-function grantSkillExp(profile: PlayerProfile, skill: DetailedSkillId, amount: number): number {
-  if (amount <= 0) return 0;
-  const state = profile.detailedSkills![skill];
-  state.exp += Math.floor(amount);
-  let levels = 0;
-  while (state.exp >= nextSkillExp(state.level)) {
-    state.exp -= nextSkillExp(state.level);
-    state.level += 1;
-    levels += 1;
-  }
-  return levels;
 }
 
 function syncMacroStats(profile: PlayerProfile): void {
@@ -109,12 +96,11 @@ function syncMacroStats(profile: PlayerProfile): void {
 
 function touch(profile: PlayerProfile, now: Date): PlayerProfile {
   profile.updatedAt = iso(now);
-  profile.lastActionAt = iso(now);
   return profile;
 }
 
 function requireActive(profile: PlayerProfile): void {
-  if (profile.careerStatus === 'RETIRED') throw new Error('Karier ini sudah pensiun. Gunakan /rebirth untuk memulai karier baru.');
+  if (profile.careerStatus === 'RETIRED') throw new Error('Karier ini sudah pensiun. Pilih Rebirth untuk memulai karier baru.');
 }
 
 function requireSkill(skill: string): asserts skill is DetailedSkillId {
@@ -124,8 +110,10 @@ function requireSkill(skill: string): asserts skill is DetailedSkillId {
 export function trainDetailedSkill(profileInput: PlayerProfile, skill: DetailedSkillId, now = new Date(), rng: RandomSource = new MathRandomSource()): { profile: PlayerProfile; skill: DetailedSkillId; expGained: number; levelBefore: number; levelAfter: number; levelsGained: number } {
   const profile = ensureGameplayState(profileInput, now);
   requireActive(profile);
+  requireSkill(skill);
   if ((profile.injury?.weeksRemaining ?? 0) > 0) throw new Error('Pemain cedera dan harus memulihkan diri sebelum latihan skill.');
   if (profile.activeTraining) throw new Error(`Training ${DETAILED_SKILL_LABELS[profile.activeTraining.skill]} masih berjalan sampai week ${profile.activeTraining.completeAtWeek}.`);
+  if (isSkillMaxed(profile, skill)) throw new Error(`${DETAILED_SKILL_LABELS[skill]} sudah mencapai level maksimal.`);
   if (profile.energy < GAME_BALANCE.detailedTraining.energyCost) throw new Error('Energi tidak cukup untuk detailed skill training.');
   if (profile.hp < GAME_BALANCE.detailedTraining.hpCost) throw new Error('HP tidak cukup untuk detailed skill training.');
   const state = profile.detailedSkills![skill];
@@ -154,15 +142,70 @@ export function assignMatchExp(profileInput: PlayerProfile, allocations: Partial
   for (const [skill, amount] of entries) {
     requireSkill(skill);
     if (!Number.isInteger(amount) || amount < 0) throw new Error('Jumlah EXP harus bilangan bulat non-negatif.');
+    if (isSkillMaxed(profile, skill)) throw new Error(`${DETAILED_SKILL_LABELS[skill]} sudah level maksimal; pilih skill lain.`);
     allocated += amount;
   }
   if (allocated > pending) throw new Error(`Alokasi EXP melebihi pool. Sisa EXP hanya ${pending}.`);
-  for (const [skill, amount] of entries) levelsGained += grantSkillExp(profile, skill as DetailedSkillId, amount);
-  profile.unassignedMatchExp = pending - allocated;
+  let used = 0;
+  for (const [skill, amount] of entries) {
+    const result = grantSkillExp(profile, skill as DetailedSkillId, amount);
+    levelsGained += result.levels;
+    used += result.applied;
+  }
+  // EXP beyond a skill's cap stays in the pool instead of disappearing.
+  profile.unassignedMatchExp = pending - used;
   if (profile.unassignedMatchExp === 0 && profile.weekStage === 'EXP_PENDING') profile.weekStage = (profile.seasonWeek ?? 1) === 1 ? 'SEASON_BREAK' : 'READY';
   syncMacroStats(profile);
   touch(profile, now);
-  return { profile, allocated, remaining: profile.unassignedMatchExp, levelsGained };
+  return { profile, allocated: used, remaining: profile.unassignedMatchExp, levelsGained };
+}
+
+const EXP_SURPLUS_MONEY_RATE = 2;
+
+/**
+ * When every detailed skill is at the cap the pool can never be assigned, so it
+ * is converted to money instead of blocking the weekly cycle forever.
+ */
+export function settleSurplusExp(profile: PlayerProfile, now: Date): string | undefined {
+  const pending = Math.max(0, profile.unassignedMatchExp ?? 0);
+  if (pending <= 0 || DETAILED_SKILLS.some((skill) => !isSkillMaxed(profile, skill))) return undefined;
+  const money = pending * EXP_SURPLUS_MONEY_RATE;
+  profile.unassignedMatchExp = 0;
+  profile.money += money;
+  profile.ledger ??= [];
+  profile.ledger.unshift({ id: `${profile.userId}-EXP_SURPLUS-${now.getTime()}-${profile.ledger.length}`, createdAt: iso(now), type: 'EXP_SURPLUS', amount: money, balanceAfter: profile.money, note: `${pending} EXP surplus (semua skill maksimal)` });
+  profile.ledger = profile.ledger.slice(0, 100);
+  if (profile.weekStage === 'EXP_PENDING') profile.weekStage = (profile.seasonWeek ?? 1) === 1 ? 'SEASON_BREAK' : 'READY';
+  return `Semua skill sudah maksimal: ${pending} EXP dikonversi menjadi ${formatMoney(money)} money.`;
+}
+
+/**
+ * Splits all pending EXP evenly across the position's rating skills (button
+ * shortcut). EXP that would overflow a capped skill flows to the remaining
+ * uncapped skills so the pool always empties.
+ */
+export function assignMatchExpEvenly(profileInput: PlayerProfile, skills: DetailedSkillId[], now = new Date()): ExpAllocationResult {
+  let profile = ensureGameplayState(profileInput, now);
+  requireActive(profile);
+  const startPending = Math.max(0, profile.unassignedMatchExp ?? 0);
+  if (startPending <= 0) throw new Error('Tidak ada EXP yang menunggu alokasi.');
+  let allocated = 0;
+  let levelsGained = 0;
+  for (let pass = 0; pass < 24 && (profile.unassignedMatchExp ?? 0) > 0; pass += 1) {
+    const preferred = skills.filter((skill) => !isSkillMaxed(profile, skill));
+    const targets = preferred.length ? preferred : DETAILED_SKILLS.filter((skill) => !isSkillMaxed(profile, skill));
+    if (!targets.length) break;
+    const pending = profile.unassignedMatchExp ?? 0;
+    const share = Math.floor(pending / targets.length);
+    const allocations: Partial<Record<DetailedSkillId, number>> = {};
+    targets.forEach((skill, index) => { allocations[skill] = index === 0 ? pending - share * (targets.length - 1) : share; });
+    const result = assignMatchExp(profile, allocations, now);
+    profile = result.profile;
+    allocated += result.allocated;
+    levelsGained += result.levelsGained;
+  }
+  settleSurplusExp(profile, now);
+  return { profile, allocated, remaining: profile.unassignedMatchExp ?? 0, levelsGained };
 }
 
 export function startTrickTraining(profileInput: PlayerProfile, trickId: string, now = new Date()): GameplayActionResult {
@@ -178,7 +221,7 @@ export function startTrickTraining(profileInput: PlayerProfile, trickId: string,
   profile.energy -= trick.energyCost;
   profile.unlockedTricks!.push(trickId);
   touch(profile, now);
-  return { profile, message: `${trick.name} terbuka. ${trick.description}` };
+  return { profile, message: `${trick.name} terbuka. ${trick.description} Bonus pertandingan +${Math.round(trick.matchModifier * 100)}%.` };
 }
 
 export function hireTrainer(profileInput: PlayerProfile, trainerId: string, now = new Date()): GameplayActionResult {
@@ -191,7 +234,7 @@ export function hireTrainer(profileInput: PlayerProfile, trainerId: string, now 
   profile.money -= definition.weeklyCost;
   profile.trainer = { ...definition, hiredAtWeek: currentWeek(profile), active: true };
   touch(profile, now);
-  return { profile, message: `Trainer ${definition.tier} aktif dengan bonus rasio ${(definition.ratio * 100).toFixed(0)}% dan biaya mingguan ${definition.weeklyCost}.` };
+  return { profile, message: `Trainer ${definition.tier} aktif: +${trainerWeeklyGain(profile.trainer)} EXP/minggu ke 3 skill, biaya ${formatMoney(definition.weeklyCost)}/minggu.` };
 }
 
 export function releaseTrainer(profileInput: PlayerProfile, now = new Date()): GameplayActionResult {
@@ -224,6 +267,10 @@ export function startCultureStudy(profileInput: PlayerProfile, subject: CultureS
   return { profile, message: `Culture study ${subject} dimulai dan selesai pada week ${profile.cultureStudy.completeAtWeek}.` };
 }
 
+export function trainerWeeklyGain(trainer: Pick<TrainerState, 'ratio'>): number {
+  return Math.min(GAME_BALANCE.trainer.maxWeeklyGain, Math.max(1, Math.round(GAME_BALANCE.trainer.gainPerRatio * trainer.ratio)));
+}
+
 function settleTrainer(profile: PlayerProfile): string | undefined {
   const trainer = profile.trainer;
   if (!trainer?.active) return undefined;
@@ -232,31 +279,27 @@ function settleTrainer(profile: PlayerProfile): string | undefined {
     return 'Trainer berhenti karena biaya mingguan tidak cukup.';
   }
   profile.money -= trainer.weeklyCost;
-  const gain = Math.min(GAME_BALANCE.trainer.maxWeeklyGain, Math.max(1, Math.round(50 * trainer.ratio)));
+  const gain = trainerWeeklyGain(trainer);
   const targets: DetailedSkillId[] = trainer.type === 'PHYSICAL' ? ['endurance', 'speed', 'holdOffDefenders'] : ['pass', 'dribbling', 'teamwork'];
-  for (const skill of targets) {
-    grantSkillExp(profile, skill, gain);
-    profile.totalExp += gain;
-  }
-  return `Trainer memberi ${gain} EXP mingguan ke ${targets.map((skill) => DETAILED_SKILL_LABELS[skill]).join(', ')}.`;
+  for (const skill of targets) profile.totalExp += grantSkillExp(profile, skill, gain).applied;
+  return `Trainer memberi ${gain} EXP mingguan ke ${targets.map((skill) => DETAILED_SKILL_LABELS[skill]).join(', ')} (biaya ${formatMoney(trainer.weeklyCost)}).`;
 }
 
 function settleTraining(profile: PlayerProfile): string | undefined {
   const training = profile.activeTraining;
   if (!training || training.completeAtWeek > currentWeek(profile)) return undefined;
   const levelBefore = profile.detailedSkills![training.skill].level;
-  profile.totalExp += training.expReward;
-  const levelsGained = grantSkillExp(profile, training.skill, training.expReward);
+  const result = grantSkillExp(profile, training.skill, training.expReward);
+  profile.totalExp += result.applied;
   profile.activeTraining = undefined;
-  return `Training ${DETAILED_SKILL_LABELS[training.skill]} selesai: +${training.expReward} EXP${levelsGained ? ` dan +${levelsGained} level` : ''} (Lv ${levelBefore} → ${profile.detailedSkills![training.skill].level}).`;
+  return `Training ${DETAILED_SKILL_LABELS[training.skill]} selesai: +${result.applied} EXP${result.levels ? ` dan +${result.levels} level` : ''} (Lv ${levelBefore} → ${profile.detailedSkills![training.skill].level}).`;
 }
 
 function settleCulture(profile: PlayerProfile): string | undefined {
   const study = profile.cultureStudy;
   if (!study || study.completeAtWeek > currentWeek(profile)) return undefined;
   profile.charm = (profile.charm ?? 0) + study.charmReward;
-  profile.totalExp += study.skillExpReward;
-  grantSkillExp(profile, study.skillReward, study.skillExpReward);
+  profile.totalExp += grantSkillExp(profile, study.skillReward, study.skillExpReward).applied;
   profile.cultureStudy = undefined;
   return `Culture study ${study.subject} selesai: charm +${study.charmReward}, ${DETAILED_SKILL_LABELS[study.skillReward]} +${study.skillExpReward} EXP.`;
 }
@@ -316,38 +359,7 @@ export function treatInjury(profileInput: PlayerProfile, treatment: 'BASIC' | 'E
   return { profile, treatment, weeksRemoved, moneySpent };
 }
 
-function resolveWorldFootballer(profile: PlayerProfile, now: Date): WorldFootballerState {
-  const season = profile.league.season;
-  const userScore = Math.round(profile.career.seasonScore + profile.career.goals * 3 + profile.career.assists * 2 + (profile.charm ?? 0));
-  const candidates = [
-    { name: 'Lewandowski', score: 76 },
-    { name: 'De Bruyne', score: 74 },
-    { name: 'Haaland', score: 78 }
-  ];
-  const winnerCandidate = candidates.reduce((best, candidate) => candidate.score > best.score ? candidate : best, candidates[0]);
-  const userWon = userScore >= winnerCandidate.score;
-  const winner = userWon ? profile.displayName : winnerCandidate.name;
-  const award: WorldFootballerState = { season, winner, userScore, userWon, resolved: true, candidates: [...candidates, { name: profile.displayName, score: userScore }] };
-  profile.worldFootballer = award;
-  if (userWon) {
-    const honor: HonorRecord = {
-      id: `world-footballer-${season}`,
-      category: 'PERSONAL',
-      title: 'World Footballer',
-      season,
-      description: 'Annual player-of-the-year comparison.',
-      source: 'WALKTHROUGH_OBSERVED',
-      value: userScore,
-      awardedAt: iso(now)
-    };
-    profile.honors ??= [];
-    if (!profile.honors.some((item) => item.id === honor.id)) profile.honors.push(honor);
-  }
-  return award;
-}
-
-function maybeRetire(profile: PlayerProfile, now: Date): boolean {
-  if (profile.age < GAME_BALANCE.weekly.retirementAge && currentCareerYear(profile) <= GAME_BALANCE.weekly.maxCareerYear) return false;
+function retire(profile: PlayerProfile, now: Date): void {
   profile.careerStatus = 'RETIRED';
   const retirement: RetirementState = {
     retiredAt: iso(now),
@@ -358,6 +370,30 @@ function maybeRetire(profile: PlayerProfile, now: Date): boolean {
     finalHonors: profile.honors?.length ?? 0
   };
   profile.retirement = retirement;
+  profile.careerHistory = [...(profile.careerHistory ?? []), {
+    generation: (profile.rebirthCount ?? 0) + 1,
+    position: profile.position,
+    retiredAt: retirement.retiredAt,
+    age: profile.age,
+    seasons: Math.max(1, currentCareerYear(profile) - 1),
+    finalClub: profile.club,
+    finalRating: retirement.finalRating,
+    appearances: profile.career.appearances,
+    goals: profile.career.goals,
+    assists: profile.career.assists,
+    honors: retirement.finalHonors
+  }];
+  // A retired athlete cannot allocate EXP; the final match pool is closed with the career.
+  profile.unassignedMatchExp = 0;
+  profile.weekStage = 'READY';
+  profile.activeTraining = undefined;
+  profile.cultureStudy = undefined;
+  if (profile.trainer) profile.trainer.active = false;
+}
+
+function maybeRetire(profile: PlayerProfile, now: Date): boolean {
+  if (profile.age < GAME_BALANCE.weekly.retirementAge && currentCareerYear(profile) <= GAME_BALANCE.weekly.maxCareerYear) return false;
+  retire(profile, now);
   return true;
 }
 
@@ -438,7 +474,10 @@ export function resolvePlayerWeeklyEvent(profileInput: PlayerProfile, choiceId: 
   const choice = event.choices.find((item) => item.id === choiceId);
   if (!choice) throw new Error('Pilihan event tidak valid.');
   profile.money = Math.max(0, profile.money + (choice.moneyDelta ?? 0));
-  profile.totalExp += choice.expDelta ?? 0;
+  // Event EXP joins the post-match "Exp left" pool so it reaches a detailed skill.
+  const expDelta = Math.max(0, choice.expDelta ?? 0);
+  profile.totalExp += expDelta;
+  profile.unassignedMatchExp = (profile.unassignedMatchExp ?? 0) + expDelta;
   profile.charm = Math.max(0, (profile.charm ?? 0) + (choice.charmDelta ?? 0));
   profile.energy = Math.min(profile.maxEnergy, Math.max(0, profile.energy + (choice.energyDelta ?? 0)));
   profile.hp = Math.min(profile.maxHp, Math.max(0, profile.hp + (choice.hpDelta ?? 0)));
@@ -464,20 +503,26 @@ export function resolvePlayerWeeklyEvent(profileInput: PlayerProfile, choiceId: 
 export function preparePlayerWeek(profileInput: PlayerProfile, now = new Date(), rng: RandomSource = new MathRandomSource()): WeekPreparationResult {
   const profile = ensureGameplayState(profileInput, now);
   requireActive(profile);
+  const surplusMessage = settleSurplusExp(profile, now);
   if ((profile.unassignedMatchExp ?? 0) > 0) throw new Error(`Assign EXP sebelum memulai week berikutnya. Sisa EXP: ${profile.unassignedMatchExp}.`);
   if (profile.weekStage === 'MATCH_READY') throw new Error('Weekly update sudah selesai. Lanjutkan ke Match Ready terlebih dahulu.');
   if (profile.weekStage === 'EXP_PENDING') throw new Error('Assign EXP hasil pertandingan terlebih dahulu.');
   if (profile.weekStage === 'EVENT_PENDING') throw new Error('Selesaikan event mingguan terlebih dahulu.');
+  ensureSeasonTracking(profile);
   const week = currentWeek(profile);
   const narrative: string[] = [`Weekly Update · Week ${week} dimulai untuk ${profile.displayName}.`];
+  if (surplusMessage) narrative.push(surplusMessage);
   if (profile.weekStage === 'SEASON_BREAK') narrative.push('Season break selesai; career memasuki weekly cycle berikutnya.');
   recoverWeekly(profile);
+  const salaryMessage = payWeeklySalary(profile, now);
+  if (salaryMessage) narrative.push(salaryMessage);
   const trainerMessage = settleTrainer(profile);
   if (trainerMessage) narrative.push(trainerMessage);
   const injuryMessage = settleInjury(profile);
   if (injuryMessage) narrative.push(injuryMessage);
   const sponsorMessage = settleSponsor(profile);
   if (sponsorMessage) narrative.push(sponsorMessage);
+  if ((profile.discipline?.suspendedMatches ?? 0) > 0) narrative.push(`Skors aktif: ${profile.discipline!.suspendedMatches} pertandingan.`);
   syncMacroStats(profile);
   const event = createPlayerWeeklyEvent(profile, now, rng);
   if (event) {
@@ -497,43 +542,37 @@ export function playPreparedWeek(profileInput: PlayerProfile, now = new Date(), 
   if (profile.weekStage !== 'MATCH_READY') throw new Error('Jalankan Weekly Update terlebih dahulu sebelum memainkan match.');
   const week = currentWeek(profile);
   const narrative: string[] = [`Match Ready · Week ${week}.`];
-  let match;
+  const fixture = playPlayerFixture(profile, now, rng);
+  profile = fixture.profile;
+  narrative.push(...fixture.narrative);
+  const match = fixture.record;
   let injury;
-  if (!profile.injury && profile.energy >= GAME_BALANCE.match.energyCost && profile.hp >= GAME_BALANCE.match.hpCost) {
-    const matchResult = playMatch(profile, now, rng);
-    profile = ensureGameplayState(matchResult.profile, now);
-    match = matchResult.record;
-    narrative.push(...matchResult.narrative);
-    const injuryMessageAfterMatch = maybeInjure(profile, now, rng);
-    if (injuryMessageAfterMatch) {
+  if (match.personal?.played) {
+    const injuryMessage = maybeInjure(profile, now, rng);
+    if (injuryMessage) {
       injury = profile.injury;
       match.injury = injury;
-      narrative.push(injuryMessageAfterMatch);
+      narrative.push(injuryMessage);
     }
-  } else if (profile.injury) {
-    narrative.push('Pertandingan dilewati karena pemain masih cedera.');
-  } else {
-    narrative.push('Pertandingan dilewati karena kondisi belum cukup; week ini menjadi recovery week.');
   }
-
   profile.careerWeek = week + 1;
-  profile.seasonWeek = (profile.seasonWeek ?? 1) + 1;
+  profile.seasonWeek = Math.max(1, profile.league.matchday);
   const trainingMessage = settleTraining(profile);
   if (trainingMessage) narrative.push(trainingMessage);
   const cultureMessage = settleCulture(profile);
   if (cultureMessage) narrative.push(cultureMessage);
   let award;
-  if ((profile.seasonWeek ?? 1) > GAME_BALANCE.weekly.weeksPerSeason) {
-    profile.seasonWeek = 1;
-    profile.careerYear = currentCareerYear(profile) + 1;
-    profile.age += 1;
-    award = resolveWorldFootballer(profile, now);
-    narrative.push(`World Footballer season ${award.season}: ${award.winner}${award.userWon ? ' — Anda menang.' : '.'}`);
-    profile.career.seasonScore = 0;
+  if (fixture.seasonComplete) {
+    const seasonEnd = finishPlayerSeason(profile, now, rng);
+    profile = seasonEnd.profile;
+    award = seasonEnd.award;
+    narrative.push(...seasonEnd.narrative);
   }
+  const surplusMessage = settleSurplusExp(profile, now);
+  if (surplusMessage) narrative.push(surplusMessage);
   const retired = maybeRetire(profile, now);
-  if (retired) narrative.push(`Karier berakhir pada usia ${profile.age}. Gunakan /rebirth untuk memulai karier baru.`);
-  profile.weekStage = profile.unassignedMatchExp! > 0 ? 'EXP_PENDING' : award ? 'SEASON_BREAK' : 'READY';
+  if (retired) narrative.push(`Karier berakhir pada usia ${profile.age}. Pilih Rebirth untuk memulai generasi karier berikutnya.`);
+  profile.weekStage = retired ? 'READY' : (profile.unassignedMatchExp ?? 0) > 0 ? 'EXP_PENDING' : award ? 'SEASON_BREAK' : 'READY';
   syncMacroStats(profile);
   touch(profile, now);
   return { profile, week, season: profile.league.season, narrative, match, expAwaitingAssignment: profile.unassignedMatchExp ?? 0, injury, award, retired, stage: profile.weekStage };
@@ -541,62 +580,92 @@ export function playPreparedWeek(profileInput: PlayerProfile, now = new Date(), 
 
 /** Compatibility path retained for existing commands and stress tests. */
 export function advanceWeek(profileInput: PlayerProfile, now = new Date(), rng: RandomSource = new MathRandomSource()): WeekResult {
-  const prepared = preparePlayerWeek(profileInput, now);
+  // The weekly event draw uses the same source so seeded simulations are reproducible.
+  const prepared = preparePlayerWeek(profileInput, now, rng);
   const readyProfile = prepared.stage === 'EVENT_PENDING' && prepared.event ? resolvePlayerWeeklyEvent(prepared.profile, prepared.event.choices[0].id, now).profile : prepared.profile;
   const played = playPreparedWeek(readyProfile, now, rng);
   return { ...played, narrative: [...prepared.narrative, ...played.narrative] };
 }
 
+/** A new athlete: 15 years old at the starter club, with an initial game-time contract so salary is paid from week 1. */
+export function createPlayerCareer(userId: string, displayName: string, position: Position, now = new Date(), rng: RandomSource = new MathRandomSource()): PlayerProfile {
+  const profile = ensureClubState(createInitialProfile(userId, displayName, position, now), now, rng);
+  return signContract(profile, now, GAME_BALANCE.contract.defaultSeasons, 'INITIAL');
+}
+
+export const VOLUNTARY_RETIREMENT_AGE = 30;
+
+export function canRetire(profile: PlayerProfile): boolean {
+  return profile.careerStatus !== 'RETIRED' && (profile.age >= VOLUNTARY_RETIREMENT_AGE || currentCareerYear(profile) >= GAME_BALANCE.weekly.maxCareerYear);
+}
+
 export function retirePlayer(profileInput: PlayerProfile, now = new Date()): GameplayActionResult {
   const profile = ensureGameplayState(profileInput, now);
   if (profile.careerStatus === 'RETIRED') throw new Error('Karier sudah pensiun.');
-  if (profile.age < GAME_BALANCE.weekly.retirementAge && currentCareerYear(profile) < GAME_BALANCE.weekly.maxCareerYear) throw new Error(`Retirement tersedia pada usia ${GAME_BALANCE.weekly.retirementAge} atau setelah ${GAME_BALANCE.weekly.maxCareerYear} tahun karier.`);
-  maybeRetire(profile, now);
+  if (!canRetire(profile)) throw new Error(`Retirement sukarela tersedia mulai usia ${VOLUNTARY_RETIREMENT_AGE} atau setelah ${GAME_BALANCE.weekly.maxCareerYear} tahun karier.`);
+  retire(profile, now);
   touch(profile, now);
   return { profile, message: `Karier ${profile.displayName} resmi pensiun pada usia ${profile.age}.` };
 }
 
-export function rebirthPlayer(profileInput: PlayerProfile, now = new Date()): GameplayActionResult {
+/**
+ * Starts the next career generation: a 15-year-old at the starter club with the
+ * position preset plus a rebirth bonus, keeping money, honors, and career history.
+ */
+export function rebirthPlayer(profileInput: PlayerProfile, now = new Date(), position?: Position): GameplayActionResult {
   const profile = ensureGameplayState(profileInput, now);
   if (profile.careerStatus !== 'RETIRED') throw new Error('Rebirth hanya tersedia setelah retirement.');
-  const money = profile.money;
-  const honors = profile.honors ?? [];
   const rebirthCount = (profile.rebirthCount ?? 0) + 1;
-  const detailedSkills = createEmptyDetailedSkills(10);
+  const nextPosition = position ?? profile.position;
+  const bonus = Math.min(GAME_BALANCE.rebirth.maxSkillBonus, rebirthCount * GAME_BALANCE.rebirth.skillBonusPerRebirth);
+  const detailedSkills = initialDetailedSkills(nextPosition);
+  for (const skill of DETAILED_SKILLS) detailedSkills[skill].level = Math.min(GAME_BALANCE.skillProgression.maxLevel, detailedSkills[skill].level + bonus);
+  profile.position = nextPosition;
   profile.age = 15;
-  profile.level = 10;
+  profile.level = GAME_BALANCE.rebirth.startingLevel;
   profile.totalExp = 0;
-  profile.stats = deriveMacroStats(detailedSkills);
   profile.detailedSkills = detailedSkills;
-  profile.career = { appearances: 0, wins: 0, draws: 0, losses: 0, goals: 0, assists: 0, steals: 0, cleanSheets: 0, yellowCards: 0, injuries: 0, seasonScore: 0 };
+  profile.stats = deriveMacroStats(detailedSkills);
+  profile.career = { appearances: 0, wins: 0, draws: 0, losses: 0, goals: 0, assists: 0, steals: 0, cleanSheets: 0, yellowCards: 0, injuries: 0, seasonScore: 0, redCards: 0, mvps: 0, championsGoals: 0 };
   profile.league = { season: 1, matchday: 1, points: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 };
+  profile.club = starterClubName();
+  profile.clubState = undefined;
+  profile.championsLeague = undefined;
+  profile.transferOffers = [];
+  profile.seasonStats = freshSeasonStats(1);
+  profile.discipline = { season: 1, yellowCards: 0, suspendedMatches: 0 };
+  profile.seasonHistory = [];
+  profile.sponsor = undefined;
   profile.careerYear = 1;
   profile.careerWeek = 1;
   profile.seasonWeek = 1;
+  profile.regularTrainingWeek = undefined;
   profile.rebirthCount = rebirthCount;
   profile.careerStatus = 'ACTIVE';
-  profile.money = money;
-  profile.honors = honors;
   profile.unassignedMatchExp = 0;
   profile.injury = undefined;
   profile.activeTraining = undefined;
   profile.cultureStudy = undefined;
   profile.worldFootballer = undefined;
   profile.retirement = undefined;
+  profile.weeklyEvent = undefined;
   profile.unlockedTricks = [];
   profile.weekStage = 'READY';
   profile.trainer = undefined;
   profile.energy = profile.maxEnergy;
   profile.hp = profile.maxHp;
-  touch(profile, now);
-  return { profile, message: `Rebirth #${rebirthCount} selesai. Money dan Hall of Honor dipertahankan; career dimulai dari level 10.` };
+  profile.contract = undefined;
+  const signed = signContract(profile, now, GAME_BALANCE.contract.defaultSeasons, 'INITIAL');
+  touch(signed, now);
+  return { profile: signed, message: `Rebirth #${rebirthCount} selesai: ${nextPosition} usia 15 di ${signed.club} dengan bonus +${bonus} ke semua skill. Money, Hall of Honor, dan riwayat karier dipertahankan.` };
 }
 
 export function formatDetailedSkills(profileInput: PlayerProfile): string {
   const profile = ensureGameplayState(profileInput);
   return DETAILED_SKILLS.map((skill) => {
     const state = profile.detailedSkills![skill];
-    return `${DETAILED_SKILL_LABELS[skill]}: Lv ${state.level} (${state.exp}/${nextSkillExp(state.level)} EXP)`;
+    if (state.level >= GAME_BALANCE.skillProgression.maxLevel) return `${DETAILED_SKILL_LABELS[skill]}: Lv ${state.level} (MAX)`;
+    return `${DETAILED_SKILL_LABELS[skill]}: Lv ${state.level} (${state.exp}/${skillLevelCost(state.level)} EXP)`;
   }).join('\n');
 }
 
@@ -606,7 +675,9 @@ export function formatGameplayStatus(profileInput: PlayerProfile): string {
   const trainer = profile.trainer?.active ? `${profile.trainer.tier} (${profile.trainer.weeklyCost}/week)` : 'None';
   const culture = profile.cultureStudy ? `${profile.cultureStudy.subject} until week ${profile.cultureStudy.completeAtWeek}` : 'None';
   const training = profile.activeTraining ? `${DETAILED_SKILL_LABELS[profile.activeTraining.skill]} until week ${profile.activeTraining.completeAtWeek}` : 'None';
-  return `Mode ${profile.mode}\nCareer ${profile.careerStatus} · Age ${profile.age} · Year ${currentCareerYear(profile)} · Week ${currentWeek(profile)}\nPending match EXP ${profile.unassignedMatchExp ?? 0}\nInjury ${injury}\nTraining ${training}\nTrainer ${trainer}\nCulture ${culture}\nCharm ${profile.charm ?? 0}\n  Tricks ${profile.unlockedTricks?.length ?? 0}\nHonors ${profile.honors?.length ?? 0}\nWeek stage ${profile.weekStage}`;
+  const regular = profile.regularTrainingWeek === currentWeek(profile) ? 'done this week' : 'available';
+  const suspension = (profile.discipline?.suspendedMatches ?? 0) > 0 ? `${profile.discipline!.suspendedMatches} match` : 'None';
+  return `Mode ${profile.mode}\nCareer ${profile.careerStatus} · Age ${profile.age} · Year ${currentCareerYear(profile)} · Week ${currentWeek(profile)}\nPending match EXP ${profile.unassignedMatchExp ?? 0}\nInjury ${injury} · Suspension ${suspension}\nDetailed training ${training} · Regular training ${regular}\nTrainer ${trainer}\nCulture ${culture}\nCharm ${profile.charm ?? 0} · Tricks ${profile.unlockedTricks?.length ?? 0} · Honors ${profile.honors?.length ?? 0}\nWeek stage ${profile.weekStage}`;
 }
 
 export function listTrainerCatalog(): Array<TrainerState & { hiredAtWeek: number }> {

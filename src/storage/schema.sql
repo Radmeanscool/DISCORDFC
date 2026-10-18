@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS economy_ledger (
 );
 
 CREATE INDEX IF NOT EXISTS idx_player_profiles_updated_at ON player_profiles(updated_at);
+-- Versus group membership lookups (one season is replicated on every member profile).
+CREATE INDEX IF NOT EXISTS idx_player_profiles_versus_group ON player_profiles ((payload->'versus'->>'groupCode'));
 CREATE INDEX IF NOT EXISTS idx_economy_ledger_user_created ON economy_ledger(user_id, created_at DESC);
 
 

@@ -11,7 +11,7 @@ export type PlayerWeekStage = 'READY' | 'MATCH_READY' | 'EXP_PENDING' | 'EVENT_P
 export type PlayerEventType = 'INTERVIEW' | 'SPONSOR_OFFER' | 'MEDICAL_INCIDENT' | 'LIFESTYLE';
 export type CoachStatus = 'EMPLOYED' | 'UNEMPLOYED' | 'RETIRED';
 export type CoachAbilityId = 'formation' | 'tactics' | 'stateAdjustment' | 'trainingLevel' | 'lockerRoom' | 'charisma';
-export type CoachTargetType = 'PROMOTION' | 'CHAMPIONSHIP' | 'AVOID_RELEGATION' | 'QCL';
+export type CoachTargetType = 'PROMOTION' | 'CHAMPIONSHIP' | 'AVOID_RELEGATION' | 'QCL' | 'TOP_HALF';
 export type InjurySeverity = 'MINOR' | 'MODERATE' | 'MAJOR';
 export type InjurySource = 'MATCH' | 'TRAINING' | 'EVENT';
 export type HonorCategory = 'PERSONAL' | 'TEAM' | 'NATIONAL';
@@ -155,6 +155,9 @@ export interface CoachJobOffer {
   league: number;
   salary: number;
   targetRank: number;
+  /** Board objective attached to the offer; legacy offers fall back to a recomputed target. */
+  targetType?: CoachTargetType;
+  requiredReputation?: number;
   durationYears: number;
   status: 'OPEN' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED';
 }
@@ -206,6 +209,11 @@ export interface CoachCareerState {
   /** Coach-only competition state; intentionally separate from PlayerProfile.championsLeague. */
   championsLeague?: ChampionsLeagueState;
   retiredAt?: string;
+  /** Played-fixture count when the last job search ran; limits offer generation to one per round. */
+  lastOfferRound?: number;
+  lastOfferSeason?: number;
+  lastSeasonResult?: ClubSeasonResult;
+  dismissedAt?: string;
 }
 
 export interface CareerStats {
@@ -220,6 +228,94 @@ export interface CareerStats {
   yellowCards: number;
   injuries: number;
   seasonScore: number;
+  redCards?: number;
+  mvps?: number;
+  championsGoals?: number;
+}
+
+export type MatchAbsenceReason = 'INJURED' | 'SUSPENDED' | 'CONDITION';
+
+/** Individual output of the user's athlete in one fixture; team score lives on MatchRecord. */
+export interface PersonalMatchPerformance {
+  played: boolean;
+  absence?: MatchAbsenceReason;
+  goals: number;
+  assists: number;
+  rating: number;
+  yellowCard: boolean;
+  redCard: boolean;
+  mvp: boolean;
+  cleanSheet: boolean;
+}
+
+export interface PlayerSeasonStats {
+  season: number;
+  appearances: number;
+  goals: number;
+  assists: number;
+  ratingSum: number;
+  mvps: number;
+  yellowCards: number;
+  redCards: number;
+  cleanSheets: number;
+  championsGoals: number;
+}
+
+export interface PlayerDisciplineState {
+  season: number;
+  yellowCards: number;
+  suspendedMatches: number;
+}
+
+export interface SeasonSummary {
+  season: number;
+  careerYear: number;
+  age: number;
+  club: string;
+  leagueId?: number;
+  leagueLabel: string;
+  rank: number;
+  points: number;
+  played: number;
+  averageRating: number;
+  stats: PlayerSeasonStats;
+  honors: string[];
+  movement: ClubSeasonResult['movement'];
+}
+
+export interface CareerHistoryEntry {
+  generation: number;
+  position: Position;
+  retiredAt: string;
+  age: number;
+  seasons: number;
+  finalClub: string;
+  finalRating: number;
+  appearances: number;
+  goals: number;
+  assists: number;
+  honors: number;
+}
+
+export interface PlayerTransferOffer {
+  id: string;
+  clubId: number;
+  clubName: string;
+  leagueId: number;
+  weeklySalary: number;
+  seasons: number;
+  season: number;
+  status: 'OPEN' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED';
+}
+
+export interface ClubSeasonResult {
+  season: number;
+  leagueId?: number;
+  rank: number;
+  points: number;
+  movement: 'PROMOTED' | 'RELEGATED' | 'STAYED';
+  nextLeagueId?: number;
+  championsQualified: boolean;
 }
 
 export interface MatchRecord {
@@ -249,6 +345,12 @@ export interface MatchRecord {
   week?: number;
   injury?: InjuryState;
   formulaVersion?: string;
+  /** playerGoals/opponentGoals stay the team score; this block is the athlete's own output. */
+  personal?: PersonalMatchPerformance;
+  competition?: 'LEAGUE' | 'CHAMPIONS';
+  matchday?: number;
+  home?: boolean;
+  teamName?: string;
 }
 
 export interface LeagueState {
@@ -318,21 +420,38 @@ export interface CompetitionStanding {
 export interface ContractState {
   id: string;
   clubId: string;
+  /** Weekly salary paid on each Weekly Update while the contract is ACTIVE. */
   salary: number;
   beginTime: string;
   endTime: string;
   state: 'ACTIVE' | 'EXPIRED' | 'REJECTED';
   type: 'INITIAL' | 'RENEWAL' | 'TRANSFER';
+  /** Game-time term. Contracts without these fields are legacy real-time contracts. */
+  startSeason?: number;
+  seasons?: number;
+  seasonsRemaining?: number;
+  lastRaiseSeason?: number;
+}
+
+export interface ChampionsMatchSummary {
+  round: number;
+  opponent: string;
+  goalsFor: number;
+  goalsAgainst: number;
+  penalties?: { for: number; against: number };
+  won: boolean;
 }
 
 export interface ChampionsLeagueState {
   season: number;
   round: number;
   opponent: string;
+  opponentId?: number;
   homeGoals: number;
   awayGoals: number;
   aggregate: number;
   status: 'QUALIFIED' | 'ACTIVE' | 'ELIMINATED' | 'CHAMPION';
+  history?: ChampionsMatchSummary[];
 }
 
 export interface AchievementState {
@@ -365,6 +484,11 @@ export interface ClubState {
   nextFixtureAt: string;
   championsLeagueQualified: boolean;
   championsLeagueRound: number;
+  /** Domestic league the club currently plays in; can differ from client data after promotion/relegation. */
+  leagueId?: number;
+  /** Club names in the current league season (stable across promotion/relegation swaps). */
+  participants?: string[];
+  lastSeasonResult?: ClubSeasonResult;
 }
 
 export interface MarketListing {
@@ -409,6 +533,13 @@ export interface VersusPlayer {
   goals: number;
   assists: number;
   appearances: number;
+  cleanSheets?: number;
+  ratingSum?: number;
+  ratedMatches?: number;
+  /** Fractional development progress; every full point raises two position abilities. */
+  growth?: number;
+  /** Yellow cards since the last suspension; resets when a ban is triggered. */
+  seasonYellowCards?: number;
 }
 
 export interface VersusClub {
@@ -417,6 +548,10 @@ export interface VersusClub {
   name: string;
   isNpc: boolean;
   grade: number;
+  /** 2 = letter-tier lifecycle (new clubs start in Liga E). Missing = legacy club created before tiers. */
+  tierVersion?: number;
+  /** Season-bound sponsor; payouts are added to battle rewards during settlement. */
+  sponsor?: VersusSponsorContract;
   country: number;
   rosterVersion: number;
   formation: FormationId;
@@ -475,6 +610,18 @@ export interface VersusSideReward {
   money: number;
   coin: number;
   conditionRecovery: number;
+  /** Sponsor payout included in money/coin, kept separately for the ledger. */
+  sponsorMoney?: number;
+  sponsorCoin?: number;
+}
+
+export interface VersusGoalEvent {
+  clubId: string;
+  playerId: string;
+  playerName: string;
+  assistId?: string;
+  assistName?: string;
+  half: 1 | 2;
 }
 
 export interface VersusSettlement {
@@ -492,6 +639,10 @@ export interface VersusSettlement {
   rulesetVersion: string;
   simulationSeed: number;
   settledAt: string;
+  scorers?: VersusGoalEvent[];
+  mvpClubId?: string;
+  /** Set when a side could not field a legal XI and the system used an emergency lineup. */
+  emergencyLineup?: Array<'HOME' | 'AWAY'>;
 }
 
 export interface VersusBattle {
@@ -531,6 +682,17 @@ export interface VersusSeasonReward {
   relegated: boolean;
   promotedToLeague?: string;
   relegatedToLeague?: string;
+  fromLeague?: string;
+  /** Season played on the pre-letter-tier grade scale: no movement; the club restarts in the entry tier. */
+  legacyReset?: boolean;
+}
+
+export type VersusSponsorTier = 'JUNIOR' | 'SENIOR' | 'TOP';
+
+export interface VersusSponsorContract {
+  tier: VersusSponsorTier;
+  seasonId: string;
+  signedAt: string;
 }
 
 export type VersusCurrency = 'MONEY' | 'COIN';
@@ -627,6 +789,32 @@ export interface VersusUserSave {
   history: Array<{ seasonId: string; rank: number; points: number; rewards: VersusSeasonReward }>;
   ledger?: VersusLedgerEntry[];
   reservations?: VersusWalletReservation[];
+  /** Season whose promotion/relegation has already been applied to club.grade (idempotency key). */
+  lastRolloverSeasonId?: string;
+  /** `${seasonId}:${round}` of the last Scout search; one search per round. */
+  lastScoutKey?: string;
+}
+
+export type NotificationType = 'VERSUS_ASSIGNED' | 'VERSUS_DEADLINE' | 'VERSUS_RESULT' | 'VERSUS_SEASON_END' | 'VERSUS_OUTBID' | 'VERSUS_AUCTION_WON' | 'VERSUS_AUCTION_LOST';
+export type NotificationStatus = 'PENDING' | 'SENT' | 'FAILED' | 'SKIPPED';
+
+/** Append-only outbox entry; `id` is the idempotency key so producers can safely re-run. */
+export interface NotificationRecord {
+  id: string;
+  type: NotificationType;
+  mode: 'VERSUS';
+  title: string;
+  lines: string[];
+  createdAt: string;
+  status: NotificationStatus;
+  attempts: number;
+  nextAttemptAt?: string;
+  sentAt?: string;
+  lastError?: string;
+}
+
+export interface NotificationSettings {
+  dm: boolean;
 }
 
 export interface EconomyLedgerEntry {
@@ -682,6 +870,8 @@ export interface PlayerProfile {
   unassignedMatchExp?: number;
   injury?: InjuryState;
   activeTraining?: ActiveTraining;
+  /** careerWeek of the last Regular Training session (one session per week). */
+  regularTrainingWeek?: number;
   trainer?: TrainerState;
   cultureStudy?: CultureStudyState;
   weeklyEvent?: PlayerWeeklyEvent;
@@ -694,6 +884,17 @@ export interface PlayerProfile {
   retirement?: RetirementState;
   coach?: CoachCareerState;
   versus?: VersusUserSave;
+  seasonStats?: PlayerSeasonStats;
+  discipline?: PlayerDisciplineState;
+  /** Append-only per-season summaries for the current career generation. */
+  seasonHistory?: SeasonSummary[];
+  /** Append-only final snapshot of every retired career generation. */
+  careerHistory?: CareerHistoryEntry[];
+  transferOffers?: PlayerTransferOffer[];
+  /** Coach-club transfer market; Player Mode athletes never buy teammates. */
+  coachMarket?: { listings: MarketListing[]; refreshedAt: string; refreshedAtRound: number; season: number };
+  notifications?: NotificationRecord[];
+  notificationSettings?: NotificationSettings;
 }
 
 export interface MatchResult {
@@ -761,6 +962,17 @@ export interface WeekResult {
   stage?: PlayerWeekStage;
 }
 
+export interface ClubMatchStats {
+  homePossession: number;
+  awayPossession: number;
+  homeShots: number;
+  awayShots: number;
+  homeShotsOnTarget: number;
+  awayShotsOnTarget: number;
+  homeCorners: number;
+  awayCorners: number;
+}
+
 export interface ClubMatchResult {
   profile: PlayerProfile;
   fixture: ClubFixture;
@@ -770,6 +982,11 @@ export interface ClubMatchResult {
   outcome: MatchOutcome;
   mvp: ClubPlayer;
   commentary: string[];
+  stats: ClubMatchStats;
+  /** Club-side players who took the field (used for personal performance and appearances). */
+  squadIds: string[];
+  opponentName: string;
+  clubIsHome: boolean;
 }
 
 export interface CoachRoundResult {
@@ -862,12 +1079,14 @@ export const TRAINER_CATALOG: Record<string, Omit<TrainerState, 'hiredAtWeek'>> 
   'expert-complete': { id: 'expert-complete', tier: 'EXPERT', type: 'TECHNICAL', ratio: 0.11, weeklyCost: 320, active: true }
 };
 
+// Requirements use the same 1–99 scale as detailed skills. matchModifier feeds the
+// personal match model (goal share and rating); thresholds are RECOVERY_INFERRED.
 export const TRICK_CATALOG: Record<string, TrickDefinition> = {
   'bicycle-kick': {
     id: 'bicycle-kick',
     name: 'Bicycle Kick',
     description: 'Teknik akrobatik dengan bonus finishing situasional.',
-    requires: { shots: 8, header: 6, dribbling: 6 },
+    requires: { shots: 70, header: 70, dribbling: 60 },
     energyCost: 24,
     matchModifier: 0.06,
     source: 'WALKTHROUGH_OBSERVED'
@@ -876,8 +1095,26 @@ export const TRICK_CATALOG: Record<string, TrickDefinition> = {
     id: 'first-touch-turn',
     name: 'First-touch Turn',
     description: 'Kontrol sentuhan pertama untuk mempercepat progresi bola.',
-    requires: { dribbling: 7, pass: 6 },
+    requires: { dribbling: 62, pass: 60 },
     energyCost: 20,
+    matchModifier: 0.04,
+    source: 'RECOVERY_INFERRED'
+  },
+  'long-range-curler': {
+    id: 'long-range-curler',
+    name: 'Long-range Curler',
+    description: 'Tendangan melengkung dari luar kotak penalti.',
+    requires: { shots: 80, freeKick: 70 },
+    energyCost: 26,
+    matchModifier: 0.05,
+    source: 'RECOVERY_INFERRED'
+  },
+  'last-ditch-tackle': {
+    id: 'last-ditch-tackle',
+    name: 'Last-ditch Tackle',
+    description: 'Tekel penyelamat yang menaikkan rating bertahan.',
+    requires: { holdOffDefenders: 75, willpower: 65 },
+    energyCost: 22,
     matchModifier: 0.04,
     source: 'RECOVERY_INFERRED'
   }

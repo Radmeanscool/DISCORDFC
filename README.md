@@ -10,69 +10,43 @@ Proyek ini mengembangkan Football Rising Star menjadi pengalaman game berbasis D
 
 | Area | Fitur |
 | --- | --- |
-| Player Mode | Profil GK/DF/MF/FW, six macro abilities, twelve detailed skills, weekly progression, training orders, HP/energy, match, manual EXP, injury, trainers, culture, tricks, awards, retirement/rebirth; conditional career incidents remain evidence-gated |
-| Coach Mode | Enam Coach abilities, roster, seven formations, ten tactics, two-half match, halftime context, 38-round home-away season, full projected league standings, board targets, approval, classified management decisions, job offers, isolated Champions League aggregate, retirement/rebirth |
-| Versus Mode | System-managed matchmaking/assignment, assigned roster/wallet terpisah, group-code registration fallback, competition sign-up state, pre-match setup interaktif, legal XI/substitute/captain/formation/tactic submission, roster-version/deadline checks, locked snapshots, fast two-half seeded settlement, result/history, standings, Market Deal/Scout surfaces, Sponsor tiers, Rewards, Schedule, Rankings, Global Ranking, lifecycle state, reward ledger |
-| Club | Roster, squad rating, dynamic recovered-league fixtures, formation, tactics, assets, prestige |
-| Competition | Fixture, matchday, standings, promotion/relegation thresholds, Player Champions League, dan Coach Champions League yang state/season/reward-nya terisolasi |
-| Economy | Money, atomic economy ledger, salary, contract, market listing, buy/sell player |
-| Progression | Daily reward streak, achievements, MVP, season scoring; unsupported Player daily-event choices are disabled |
-| Production | PostgreSQL store dengan optimistic concurrency, atomic multi-profile batch save, advisory group lock untuk Versus, schema migration, JSON-to-PostgreSQL import, Docker image, Compose stack, rate limiter, per-user command queue, structured logging, admin stats |
+| Player Mode | Atlet 15 tahun di klub starter dengan kontrak awal. Weekly loop: Next Week (recovery, gaji, trainer, event) → Play Match (fixture liga klub, performa personal: gol/assist/rating/kartu/MVP) → Assign EXP (1 skill atau dibagi rata ke beberapa skill). Regular Training 1x/minggu, detailed training, culture, tricks yang menambah peluang gol/rating, cedera & skors, season penuh sesuai jumlah fixture liga, World Footballer & honors dari statistik season, kontrak per season + kenaikan gaji, transfer window + tawaran klub akhir season, pensiun & rebirth dengan riwayat karier |
+| Coach Mode | Klub Coach terpisah dari atlet Player. Enam ability Coach berefek nyata di pertandingan (formasi, taktik, comeback, perkembangan, moral, approval board). Board target dari peringkat ekspektasi, pemecatan di tengah season, job offer berbasis reputasi, transfer market memakai assets klub, Season Settlement dengan ringkasan promosi/degradasi, Champions League terpisah, pensiun/rebirth |
+| Versus Mode | Liga huruf S→A→B→C→D→E tanpa negara; klub baru mulai di Liga E, rank 1–2 promosi, 2 terbawah degradasi. Kekuatan NPC naik per tier. Lineup builder (formation, tactic, XI per posisi, captain, subs, Auto XI) dengan deadline per round; battle diproses otomatis. Attack/defence/control terpisah dengan matchup taktik, HP/cedera/skors berefek, gol/assist/clean sheet tercatat, pemain berkembang & menua. Market lelang coin (reservation, anti-snipe, kedalaman NPC dilindungi), Squad (lepas pemain), Scout, Sponsor, Rewards, Rankings. Next Season menerapkan promosi/degradasi lalu membuat season di liga tujuan. Semua notifikasi gameplay Versus dikirim via DM (bisa dimatikan) |
+| Competition | Liga domestik recovered (England/Spain/Italy/Germany/France, divisi 1–3) dengan promosi/degradasi 3 klub, klasemen penuh, Champions League untuk 4 teratas divisi 1 (lawan kontinental, adu penalti, ronde tersebar di kalender liga) |
+| Economy | Money & ledger atomik, gaji mingguan, kontrak, achievements, daily reward; Versus memakai money/coin sendiri |
+| Production | Optimistic concurrency (JSON & PostgreSQL) — tidak ada lost update; batch save atomik untuk grup Versus; advisory lock per grup dengan batas koneksi; maintenance worker (recovery, round/season Versus, lelang); worker DM outbox dengan retry/backoff & idempotency; panel ephemeral diperbarui di tempat; rate limiter; per-user command queue; structured logging |
 
 ## Panduan penggunaan
 
 Panduan lengkap untuk player, Coach, Versus, operator, administrator, deployment, fallback commands, troubleshooting, dan batas parity tersedia di [`docs/DISCORD_BOT_PLAYER_ADMIN_GUIDE.md`](docs/DISCORD_BOT_PLAYER_ADMIN_GUIDE.md).
 Checklist pengujian sebelum closed beta/public release tersedia di [`docs/RELEASE_READINESS_TEST_PLAN.md`](docs/RELEASE_READINESS_TEST_PLAN.md).
+Laporan audit & perbaikan parity terbaru: [`docs/AUDIT_FIX_REPORT_2026-10-18.md`](docs/AUDIT_FIX_REPORT_2026-10-18.md).
 
 ## Slash command fallback / operator
 
+Registry default hanya `/play`. Command berikut hanya didaftarkan jika `REGISTER_FALLBACK_COMMANDS=true` dan dibalas secara ephemeral.
+
 | Command | Fungsi |
 | --- | --- |
-| `/start position:FW` | Membuat profil pemain dan klub awal |
-| `/profile` | Melihat atribut, kondisi, contract, club rating, career stats, dan dashboard tombol interaktif |
-| `/train ability:technique` | Melatih ability dan mengonsumsi energy |
-| `/match` | Memainkan pertandingan karier pemain |
-| `/club` | Melihat club office, resources, strategy, dan next fixture |
-| `/clubs league:1011` | Melihat daftar official clubs, ID, grade, dan prestige |
-| `/join-club club_id:101102` | Pindah ke official club dari client data |
-| `/squad` | Melihat roster dan ID pemain |
-| `/formation id:4-3-3` | Mengubah formasi klub |
-| `/tactic id:attacking` | Mengubah taktik klub |
-| `/club-match` | Memainkan fixture Player Club dan memperbarui standings |
-| `/coach-career`, `/coach-profile` | Memulai atau melihat karier Coach |
-| `/coach-round`, `/coach-exp`, `/coach-event` | Memainkan round Coach, alokasikan EXP, dan selesaikan classified management decision |
-| `/coach-job`, `/coach-retire`, `/coach-rebirth` | Mengelola job offer, retirement, dan rebirth Coach |
-| `/league` atau `/standings` | Melihat klasemen dan progres Player Club season |
-| `/versus-join group_code:CODE` | Fallback untuk bergabung ke private Versus group dengan group code |
-| `/versus-profile`, `/versus-standings` | Membuka Versus Home atau klasemen; assignment system-managed berjalan otomatis |
-| `/versus-bid listing_id:<id> amount:<coin>` | Mengajukan bid Deal Versus dengan reservation dan settlement escrow-style |
-| Versus Home → `Registration` | Melihat status registrasi, group code, competition, capacity, dan season state |
-| Versus Home → `Market` / `Deal` / `Scout` | Membuka market listing Deal berbasis snapshot, bid countdown, reservation, dan tab Scout yang tetap transparan jika ruleset belum terverifikasi |
-| Versus Home → `Sponsor` / `Rewards` | Menampilkan sponsor tiers, balance, reward state, dan ledger hasil season; Sponsor claim tetap preview-only sampai cost/effect terkalibrasi |
-| Versus Home → `Schedule` / `Rankings` / `Global Ranking` | Membuka jadwal fixture, kategori ranking, dan season-wide ranking |
-| Versus Home → `Lineup` / `Next Battle` | Membuka pre-match setup: pilih formation, tactic, XI per posisi, captain, substitutes, review, lalu confirm submission |
-| `/versus-lineup battle_id:<id> lineup:<ids> captain:<id> formation:4-4-2 tactic:balanced roster_version:<n>` | Fallback command untuk mengunci submission XI, substitutes opsional, captain, formation, tactic, dan roster version sebelum deadline |
-| `/versus-round`, `/versus-season` | Memproses round atau melihat/menutup season Versus |
-| `tools/calibrate-player-formulas.ts` | Menghasilkan deterministic Player probe; probe bukan data asli dan tidak menaikkan status formula menjadi official |
-| `/season-end` | Memulai season berikutnya setelah seluruh fixture selesai |
-| `/contract action:sign` | Menandatangani atau memperpanjang kontrak |
-| `/daily` | Mengambil daily reward dan menaikkan streak |
-| `/market action:refresh` | Membuat daftar pemain market |
-| `/buy-player listing:listing-market-1` | Membeli pemain dari market |
-| `/sell-player player:npc-1` | Menjual pemain non-user dari roster |
-| `/champions action:status mode:PLAYER|COACH` | Melihat status Champions League pada aggregate Player atau Coach |
-| `/champions action:play mode:PLAYER|COACH` | Memainkan ronde Champions League pada mode yang dipilih |
-| `/achievements` | Melihat progress achievement |
-| `/claim-achievement achievement:appearances-10` | Mengklaim achievement yang siap |
-| `/admin action:stats` | Statistik operasi, hanya untuk `ADMIN_USER_IDS` |
-| `/admin action:refresh-markets` | Refresh market semua profil, hanya admin |
-| `/help` | Melihat bantuan command |
+| `/player career start position:FW` | Membuat profil atlet (klub starter + kontrak awal) |
+| `/player career profile` · `next-week` · `match` · `league` | Weekly hub, weekly update, pertandingan, klasemen |
+| `/player career injury` · `contract` · `champions` · `daily` · `retire` · `rebirth` | Recovery/treatment, kontrak (view/sign), Champions League, daily reward, pensiun, rebirth |
+| `/player training train` · `skills` · `train-skill` · `assign-exp` · `trick` · `trainer` · `culture` | Regular/detailed training, alokasi EXP, trick, trainer, culture study |
+| `/player club overview` · `list` · `join` · `squad` · `standings` | Club office atlet, daftar klub, transfer (dengan syarat rating & transfer window), roster |
+| `/player honors list` · `world-footballer` · `achievements` · `claim` | Hall of Honor dan achievement |
+| `/coach career` · `profile` · `round` · `event` · `exp` · `formation` · `tactic` · `job` · `retire` · `rebirth` · `champions` | Karier Coach |
+| `/versus home` · `roster` · `standings` · `lineup` · `bid` · `join` | Versus Home, squad, klasemen, lineup manual, bid, private group |
+| `/admin action:stats` · `action:run-maintenance` | Statistik operasi / jalankan maintenance sekarang (hanya `ADMIN_USER_IDS`) |
+| `/help` | Panduan singkat |
 
-Setelah `/play`, Game Home menyediakan tombol **Player Mode**, **Coach Mode**, dan **Versus Mode**. Seluruh operasi gameplay utama kemudian dilanjutkan melalui button dan select menu yang owner-bound: Player memiliki weekly update, match, EXP, training, recovery, club office, honors, contract, dan Champions; Coach memiliki round, management decision, EXP, formation/tactic, job offer, club office, dan Champions; Versus memiliki assignment, next battle, lineup builder, result, standings, market, rewards, schedule, rankings, dan sponsor surfaces. Command root tetap tersedia sebagai fallback operator, tetapi pengguna normal tidak perlu mengetik command untuk setiap aksi. Versus masuk melalui system matchmaking; `/versus-join` hanya menjadi fallback untuk private group code. Tombol serta select terikat pada Discord user pemilik profile sehingga tidak dapat dipakai user lain. Versus assignment tetap terpisah dari Player dan Coach aggregate.
+Setelah `/play`, Game Home menyediakan tombol **Player Mode**, **Coach Mode**, dan **Versus Mode**. Klik pertama dari pesan `/play` membuka panel pribadi (ephemeral); klik berikutnya di panel itu memperbarui panel yang sama di tempat. Tombol dan select terikat pada user pemilik sehingga tidak bisa dipakai user lain. Player, Coach, dan Versus tidak berbagi progression.
 
 ## Button-driven gameplay
 
-Flow yang direkomendasikan adalah `/play` → pilih mode → pilih aksi pada menu konteks mode → kembali ke home setelah setiap aksi. Player tidak lagi memiliki daily event menu; daily reward, injury/recovery, training, weekly update, match, dan pending EXP memiliki panel masing-masing. Coach `Decision` hanya menampilkan keputusan manajemen ketika event Coach memang pending. Versus tidak membuat pengguna mengetik technical matchmaking command; sistem menyiapkan assignment dan menu **Next Battle/Lineup** menjadi entry pre-match.
+- **Player**: Player Status · Training · Personal · Club · Career / Next Week · Play Match · Assign EXP · Recovery / Weekly Event · Daily · Contract · Honors · Champions. Club panel berisi League Table, Squad, Transfer Offers, dan Change Club (aktif saat transfer window). Career panel berisi riwayat season/generasi, Retire (konfirmasi), dan Rebirth dengan pilihan posisi.
+- **Coach**: Profile · Play Round · Club Office · Decision / Coach EXP · Formation/Tactic · Job Offers · Champions / Transfer Market · Season Settlement · Career.
+- **Versus**: Home · Lineup · Results · Standings · Schedule / Market · Squad · Scout · Sponsor · Rankings / Rewards · Registration · Global Ranking · DM On/Off. Setelah season selesai: Next Season.
 
 ## Data client 2.8.0
 
@@ -82,9 +56,11 @@ Field ability dictionary variable-length belum dipaksakan menjadi overall resmi.
 
 ## Arsitektur
 
-Engine domain berada di `src/domain/` dan tidak bergantung pada Discord. `engine.ts` menangani Player career dan match; `gameplay-engine.ts` menangani detailed progression; `club-engine.ts` menangani Club state dan club match; `coach-career-engine.ts` menangani Coach career/board/job/event; `versus-engine.ts` menangani Versus aggregates, schedule, settlement, standings, dan rewards; subsistem lain menangani competition, progression, contract, dan official transfer. `src/discord/components.ts` menyediakan Versus Home dan pre-match builder; `src/discord/handlers.ts` menjadi adapter interaction Discord.
-
-Persistence memiliki dua mode. Tanpa `DATABASE_URL`, bot memakai `JsonPlayerStore` untuk development lokal. Dengan `DATABASE_URL`, bot memakai `PostgresPlayerStore`. Keduanya kini memiliki kontrak `saveBatch` untuk menyimpan seluruh projection profile Versus secara atomic dalam satu operasi backend. PostgreSQL juga menyediakan advisory lock per group code; JSON fallback memakai serialized group queue dalam satu process. Schema disediakan pada `src/storage/schema.sql`; script migration dan import JSON berada pada `src/storage/migrate.ts` dan `src/storage/import-json.ts`. PostgreSQL kini memiliki projection tables untuk queue, match, market, reservation, dan ledger; profile JSONB tetap menjadi compatibility projection sementara canonical worker/settlement service multi-replica masih merupakan roadmap.
+- `src/domain/` — engine murni tanpa Discord. `engine.ts` (profil, recovery real-time per jam penuh, regular training), `gameplay-engine.ts` (weekly loop, EXP, trainer, event, cedera, pensiun/rebirth, `createPlayerCareer`), `player-match-engine.ts` (fixture atlet, performa personal, akhir season, World Footballer), `skill-engine.ts`, `player-formulas.ts`, `league-engine.ts` (kekuatan klub, jadwal circle-method, simulasi round lain, promosi/degradasi), `club-engine.ts`, `coach-career-engine.ts`, `competition-engine.ts` (Champions League, achievements), `contract-engine.ts`, `official-club-engine.ts`, `progression-engine.ts` (daily reward, Coach transfer market), `versus-engine.ts`, `versus-economy.ts`, `versus-club-engine.ts` (release/sponsor/scout), `notification-engine.ts` + `versus-notifications.ts` (outbox DM).
+- `src/services/versus-service.ts` — application service grup Versus: lock grup, pemilihan season kanonik, assignment public league per tier (`PUB-<tier>-<YYMMDD>-<NN>`), private group, catch-up (round jatuh tempo, akhir season, lelang, siklus market baru, pengingat deadline) yang dipakai bersama oleh panel Discord dan worker.
+- `src/jobs/` — `maintenance.ts` (recovery/achievement/kontrak lama + catch-up semua grup Versus aktif), `notification-dispatcher.ts` (kirim DM, backoff 1m→6h, maks 5 percobaan, error permanen 50007/10013), `background-worker.ts` (single-flight).
+- `src/discord/` — `components.ts` (custom id pendek `frs:<user>:<aksi>`, lineup `vl:<langkah>:<round>:<versi roster>`), `embeds.ts`, `handlers.ts` (router aksi bersama untuk tombol & fallback command, retry otomatis saat konflik versi).
+- `src/storage/` — `JsonPlayerStore` (development) dan `PostgresPlayerStore` dengan optimistic concurrency (`ConcurrentProfileUpdateError`), `saveBatch` atomik, `versusMembers` (query grup terindeks), advisory lock per grup.
 
 ## Menjalankan secara lokal
 
@@ -124,24 +100,27 @@ Untuk database managed, gunakan `DATABASE_URL` provider tersebut dan jalankan mi
 
 ## Testing dan balance
 
-Perintah berikut menjalankan build dan test:
-
 ```bash
 pnpm build
 pnpm test
 ```
 
-Test suite saat ini berisi **87 test lulus dan 0 gagal**, termasuk release-readiness invalid transition, economy boundary, match telemetry bounds, weekly UI/state integration, Player/Coach/Versus career, Coach full-league projection, mode isolation, Player/Coach Champions isolation, multi-club fixture, Versus Home/custom-ID ownership, legal Versus lineup submission, two-half settlement, standings, reward ledger idempotency, daily streak, weekly events, market cooldown/transfer guard, contract, achievements, rate limiter, command/group queue, interactive components, atomic JSON batch persistence, dan konfigurasi balance.
+Test suite saat ini berisi **126 test lulus dan 0 gagal**, termasuk alur handler end-to-end dengan interaksi Discord tiruan (validasi batas Discord: custom id ≤ 100, ≤ 5 baris, ≤ 25 opsi, id unik, ukuran embed), migrasi save versi lama, service grup Versus (assignment, lineup, outbid DM, round & season, Next Season), outbox DM (delivery, retry/backoff, error permanen, idempotency), konkurensi storage (stale write ditolak, batch all-or-nothing, batas koneksi lock grup), serta regresi parity (recovery per jam, kurva skill, output gol per posisi, rebirth, efek ability Coach, kekuatan tier Versus, cedera/skors).
 
-Advanced scout dan player-status improvement disebut oleh changelog publik battle mode, tetapi belum diaktifkan sebagai mechanic baru karena harga, offer generation, persistence, dan effect formula tidak tersedia dari bukti publik. Menampilkan UI palsu untuk dua mechanic tersebut akan lebih berisiko daripada menunggu ruleset yang dapat diaudit.
+Alat verifikasi tambahan:
 
-Nilai gameplay yang masih bersifat sementara berada di `src/config/game-balance.ts`. Config menyimpan biaya training/match, recovery, reward, peluang gol, versi balance, dan provenance. Saat formula internal sudah tervalidasi, ubah `source` menjadi `OFFICIAL_CALIBRATED`, tambahkan golden tests, dan catat sumber kalibrasi di `docs/PORTING_MAP.md`.
+```bash
+pnpm exec tsx tools/targeted-audit.ts      # temuan parity dengan angka terukur
+SIM_TRIALS=50 pnpm exec tsx tools/stress-simulation.ts   # invariant + determinisme ketiga mode
+```
+
+Nilai gameplay yang masih bersifat sementara berada di `src/config/game-balance.ts` dengan provenance `RECOVERY_INFERRED`. Saat formula internal sudah tervalidasi, ubah `source` menjadi `OFFICIAL_CALIBRATED`, tambahkan golden tests, dan catat sumber kalibrasi di `docs/PORTING_MAP.md`.
 
 ## Deployment dan operasi
 
 Bot Discord membutuhkan proses yang berjalan terus-menerus. Komputer kantor/server yang sudah tersedia cocok untuk internal testing. Hosting Node.js managed atau VPS lebih cocok untuk operasi publik karena dapat menjalankan restart policy, database terpisah, monitoring, backup, dan secret management. Minimal production hardening yang masih direkomendasikan adalah backup PostgreSQL, TLS pada database managed, structured logging, error alerting, command audit log, dan pemisahan admin user ID dari source code.
 
-Command `/admin` dibatasi oleh native Discord `Manage Guild` permission dan `ADMIN_USER_IDS`. Rate limiter default membatasi satu user sampai 12 interaction per 60 detik pada satu proses. Command mutation user yang sama diserialisasi oleh per-user queue dan PostgreSQL menggunakan optimistic concurrency. Untuk deployment multi-instance, rate limiter dan queue perlu dipindahkan ke Redis atau database agar konsisten antar-instance.
+Command `/admin` dibatasi oleh native Discord `Manage Guild` permission dan `ADMIN_USER_IDS`. Rate limiter default membatasi satu user sampai 30 interaction per 60 detik pada satu proses (panel tombol butuh beberapa klik per aksi). Worker DM berjalan tiap `NOTIFICATION_INTERVAL_MS` (default 60 detik) di bawah lock maintenance yang sama sehingga dua instance tidak mengirim DM ganda; bot hanya bisa DM user yang berada di server yang sama dan tidak menutup DM. Command mutation user yang sama diserialisasi oleh per-user queue dan PostgreSQL menggunakan optimistic concurrency. Untuk deployment multi-instance, rate limiter dan queue perlu dipindahkan ke Redis atau database agar konsisten antar-instance.
 
 ## Batasan parity dengan game asli
 

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { ensureClubState } from '../src/domain/club-engine.js';
 import { advanceWeek, assignMatchExp, ensureGameplayState, hireTrainer, playPreparedWeek, preparePlayerWeek, rebirthPlayer, resolvePlayerWeeklyEvent, retirePlayer, startTrickTraining, trainDetailedSkill, treatInjury } from '../src/domain/gameplay-engine.js';
 import { createInitialProfile, playMatch, SeededRandom } from '../src/domain/engine.js';
 
@@ -62,16 +63,24 @@ test('Player weekly loop exposes update, match, and EXP stages', () => {
   assert.equal(allocated.profile.weekStage, 'READY');
 });
 
-test('trainer, weekly progression, and annual award state are persisted', () => {
-  let profile = createInitialProfile('gameplay-5', 'Weekly Star', 'FW');
-  profile.seasonWeek = 10;
-  const hired = hireTrainer(profile, 'junior-physical');
-  const week = advanceWeek(hired.profile, new Date('2026-01-01T00:00:00.000Z'), new SeededRandom(4));
+test('trainer, weekly progression, and the season-end award are persisted', () => {
+  const now = new Date('2026-01-01T00:00:00.000Z');
+  // A season lasts the club's whole fixture list; jump to the final matchday.
+  const profile = ensureClubState(createInitialProfile('gameplay-5', 'Weekly Star', 'FW', now), now, new SeededRandom(3));
+  const fixtures = profile.clubState!.fixtures;
+  for (const fixture of fixtures.slice(0, -1)) Object.assign(fixture, { played: true, homeGoals: 1, awayGoals: 1 });
+  profile.league.matchday = fixtures.length;
+  const hired = hireTrainer(profile, 'junior-physical', now);
+  const week = advanceWeek(hired.profile, now, new SeededRandom(4));
   assert.equal(week.profile.careerWeek, 2);
   assert.equal(week.profile.seasonWeek, 1);
+  assert.equal(week.profile.league.season, 2);
   assert.equal(week.profile.age, 16);
   assert.equal(week.award?.resolved, true);
-  assert.equal((week.profile.unassignedMatchExp ?? 0) > 0, true);
+  assert.equal(week.award?.season, 1);
+  assert.equal(week.profile.seasonHistory?.length, 1);
+  assert.equal(week.profile.trainer?.active, true);
+  assert.equal(week.profile.clubState!.fixtures.every((fixture) => !fixture.played), true);
 });
 
 test('weekly player event blocks match until a button choice is resolved', () => {
