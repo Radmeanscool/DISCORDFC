@@ -1,10 +1,10 @@
 import { EmbedBuilder, type ColorResolvable } from 'discord.js';
-import { getRating } from '../domain/engine.js';
+import { getRating, NATIONALITIES } from '../domain/engine.js';
 import { formatClubStanding, getClubRating, isClubSeasonComplete } from '../domain/club-engine.js';
 import { coachReputation, type CoachSeasonSummary } from '../domain/coach-career-engine.js';
 import { formatContract, getContractStatus } from '../domain/contract-engine.js';
 import { formatMoney } from '../domain/format.js';
-import { canRetire, formatDetailedSkills, VOLUNTARY_RETIREMENT_AGE } from '../domain/gameplay-engine.js';
+import { canRetire, formatDetailedSkills, skillDisplayLevel, VOLUNTARY_RETIREMENT_AGE } from '../domain/gameplay-engine.js';
 import { leagueLabel, resolveClubLeagueId, sortStandings } from '../domain/league-engine.js';
 import { ratingSkillsFor } from '../domain/player-formulas.js';
 import { transferWindowOpen } from '../domain/official-club-engine.js';
@@ -104,8 +104,11 @@ function nextFixtureLine(profile: PlayerProfile): string {
 function clubLine(profile: PlayerProfile): string {
   const club = profile.clubState;
   if (!club) return `🏟️ **${profile.club}**`;
-  const rank = sortStandings(club.standings).findIndex((standing) => standing.clubId === club.id) + 1;
-  return `🏟️ **${profile.club}** · ${leagueLabel(resolveClubLeagueId(club))}${rank > 0 ? ` · #${rank} (${profile.league.points} pts)` : ''}`;
+  const table = sortStandings(club.standings);
+  const rank = table.findIndex((standing) => standing.clubId === club.id) + 1;
+  // Before the first matchday every row is level, so a rank would be arbitrary.
+  const played = table.some((standing) => standing.played > 0);
+  return `🏟️ **${profile.club}** · ${leagueLabel(resolveClubLeagueId(club))}${played && rank > 0 ? ` · #${rank} (${profile.league.points} pts)` : ''}`;
 }
 
 function statusAlerts(profile: PlayerProfile): string[] {
@@ -129,11 +132,11 @@ export function profileEmbed(profile: PlayerProfile): EmbedBuilder {
       field('❤️ Kondisi', `HP ${gauge(profile.hp, profile.maxHp)} ${profile.hp}/${profile.maxHp}\nEnergi ${gauge(profile.energy, profile.maxEnergy)} ${profile.energy}/${profile.maxEnergy}\n💰 ${formatMoney(profile.money)} · Charm ${profile.charm ?? 0}`, true),
       field(`📊 Musim ${profile.league.season}`, `${seasonLine(profile)}\nKlub ${profile.league.wins}-${profile.league.draws}-${profile.league.losses}`, true),
       field('📈 Skill', profile.detailedSkills ? formatDetailedSkills(profile) : 'Akan dimigrasikan pada aksi berikutnya.'),
-      field('Ringkasan atribut', abilities),
+      field('Atribut (radar)', abilities),
       field('Status', alerts.length ? alerts.join('\n') : 'Sehat · tidak ada program aktif'),
       field('🏅 Total karier', `${profile.career.appearances} main · ${profile.career.wins}-${profile.career.draws}-${profile.career.losses}\n⚽ ${profile.career.goals} · 🅰️ ${profile.career.assists} · 🧤 ${profile.career.cleanSheets} · MVP ${profile.career.mvps ?? 0} · Tricks ${profile.unlockedTricks?.length ?? 0} · Honors ${profile.honors?.length ?? 0}`)
     )
-    .setFooter({ text: 'Skill 1–99 · formula pertandingan RECOVERY_INFERRED' });
+    .setFooter({ text: 'Level skill dihitung sejak awal karier · formula pertandingan RECOVERY_INFERRED' });
 }
 
 const NEXT_STEP: Record<NonNullable<PlayerProfile['weekStage']>, string> = {
@@ -147,11 +150,11 @@ const NEXT_STEP: Record<NonNullable<PlayerProfile['weekStage']>, string> = {
 /** Weekly hub: the essentials at a glance and one obvious next step. */
 export function playerWeeklyEmbed(profile: PlayerProfile): EmbedBuilder {
   const stage = profile.weekStage ?? 'READY';
-  const key = ratingSkillsFor(profile.position).slice(0, 4).map((skill) => `${DETAILED_SKILL_LABELS[skill]} **${profile.detailedSkills?.[skill].level ?? '-'}**`).join(' · ');
+  const key = ratingSkillsFor(profile.position).slice(0, 4).map((skill) => `${DETAILED_SKILL_LABELS[skill]} **Lv ${skillDisplayLevel(profile, skill)}**`).join(' · ');
   const alerts = statusAlerts(profile);
   const item = embed(`⚽ ${profile.displayName} · ${POSITION_LABELS[profile.position]}`, [
     clubLine(profile),
-    `📅 Musim ${profile.league.season} · Minggu ${profile.careerWeek ?? 1} · Usia ${profile.age}`,
+    `📅 Musim ${profile.league.season} · Minggu ${profile.careerWeek ?? 1} · Usia ${profile.age}${profile.nationality ? ` · ${NATIONALITIES.find((item) => item.code === profile.nationality)?.label ?? profile.nationality}` : ''}`,
     `⭐ Rating **${getRating(profile)}** · 💰 ${formatMoney(profile.money)}`,
     '',
     profile.careerStatus === 'RETIRED' ? 'Karier sudah pensiun. Tekan **Rebirth** untuk generasi baru.' : `➡️ ${NEXT_STEP[stage]}`

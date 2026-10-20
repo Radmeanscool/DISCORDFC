@@ -883,6 +883,10 @@ export interface PlayerProfile {
   seasonWeek?: number;
   weekStage?: PlayerWeekStage;
   rebirthCount?: number;
+  /** Skill values when this career generation began; the UI counts levels from here (Lv 1, 2, 3…). */
+  skillBase?: Partial<Record<DetailedSkillId, number>>;
+  /** Birth country picked at creation; it decides the national team for international tournaments, not the club. */
+  nationality?: string;
   detailedSkills?: DetailedSkills;
   unassignedMatchExp?: number;
   injury?: InjuryState;

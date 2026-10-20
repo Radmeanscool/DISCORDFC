@@ -50,7 +50,7 @@ Setelah `/play`, Game Home menyediakan tombol **Player Mode**, **Coach Mode**, d
 
 ## Data client 2.8.0
 
-Audit client terbaru berhasil memparse **332 official club record** dari `cfg_club_202603` dan **5.133 player record fixed-field** dari payload `cfg_player_202603`. Data ini tersimpan di `data/recovery/` dengan provenance dan dimuat oleh `src/config/recovery-data.ts`. Profile baru memulai karier di klub starter grade rendah yang dipilih deterministik dari league 1011; klub besar seperti Arsenal dibuka melalui jalur transfer Club Office. Roster klub memakai nama player client sesuai official club ID. Position code dipetakan runtime sebagai FW 1–4, MF 5–9, DF 10–12, GK 13.
+Audit client terbaru berhasil memparse **332 official club record** dari `cfg_club_202603` dan **5.133 player record fixed-field** dari payload `cfg_player_202603`. Data ini tersimpan di `data/recovery/` dengan provenance dan dimuat oleh `src/config/recovery-data.ts`. Seperti di game asli, profile baru mulai sebagai Free Player lalu diteken klub divisi 3 acak (league 10x3); klub besar dicapai lewat performa, tawaran, dan transfer. Negara asal hanya menentukan tim nasional. Roster klub memakai nama player client sesuai official club ID. Position code dipetakan runtime sebagai FW 1–4, MF 5–9, DF 10–12, GK 13.
 
 Field ability dictionary variable-length belum dipaksakan menjadi overall resmi. Overall runtime masih diberi label `RECOVERY_INFERRED`, sedangkan name, club ID, league, position, age, salary, prestige, grade, formations, dan tactics yang diparse langsung diberi label `RECOVERY_VERIFIED`. Endpoint backend dan Remote Config tidak diaktifkan karena audit hanya mengonfirmasi dependency Firebase, bukan endpoint produksi.
 

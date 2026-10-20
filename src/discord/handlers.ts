@@ -5,7 +5,7 @@ import { claimAchievement, playChampionsLeague, startChampionsLeague, syncAchiev
 import { getContractStatus, renewContract, requestSalaryRaise } from '../domain/contract-engine.js';
 import { acceptJobOffer, advanceCoachRound, assignCoachExp, createCoachCareer, declineJobOffer, generateJobOffer, rebirthCoach, resolveCoachEvent, retireCoach, settleCoachSeasonWithSummary } from '../domain/coach-career-engine.js';
 import { formatMoney } from '../domain/format.js';
-import { assignMatchExp, assignMatchExpEvenly, canRetire, createPlayerCareer, ensureGameplayState, formatDetailedSkills, formatGameplayStatus, hireTrainer, listTrainerCatalog, playPreparedWeek, preparePlayerWeek, rebirthPlayer, releaseTrainer, resolvePlayerWeeklyEvent, retirePlayer, startCultureStudy, startTrickTraining, trainDetailedSkill, treatInjury } from '../domain/gameplay-engine.js';
+import { assignMatchExp, assignMatchExpEvenly, canRetire, createPlayerCareer, ensureGameplayState, formatDetailedSkills, skillDisplayLevel, formatGameplayStatus, hireTrainer, listTrainerCatalog, playPreparedWeek, preparePlayerWeek, rebirthPlayer, releaseTrainer, resolvePlayerWeeklyEvent, retirePlayer, startCultureStudy, startTrickTraining, trainDetailedSkill, treatInjury } from '../domain/gameplay-engine.js';
 import { acceptTransferOffer, declineTransferOffer, joinOfficialClub, listEligibleClubs, listOfficialClubs, officialClubMinimumRating, officialClubTransferFee, transferWindowOpen } from '../domain/official-club-engine.js';
 import { claimDailyReward, COACH_MARKET_SELL_RATE, playerMarketValue, refreshCoachMarket, buyCoachPlayer, sellableCoachPlayers, sellCoachPlayer } from '../domain/progression-engine.js';
 import { dmEnabled } from '../domain/notification-engine.js';
@@ -20,6 +20,8 @@ import { log } from '../observability/logger.js';
 import { ratingSkillsFor } from '../domain/player-formulas.js';
 import { PLAYER_OVERLAY_SUMMARY } from '../config/recovery-data.js';
 import { BUILD_LABEL } from '../config/build-info.js';
+import { NATIONALITIES } from '../domain/engine.js';
+import { leagueLabel } from '../domain/league-engine.js';
 import { resolveModeCommand } from './commands.js';
 import {
   championsControls,
@@ -45,6 +47,7 @@ import {
   playerInjuryControls,
   playerWeeklyControls,
   PLAYER_MENU,
+  COACH_MENU,
   retireConfirmControls,
   trainerControls,
   trainingControls,
@@ -175,19 +178,30 @@ function playerHome(profile: PlayerProfile, userId: string, content?: string): P
 
 async function playerHomeAction(ctx: Ctx, content?: string): Promise<Panel> {
   const profile = await ctx.store.get(ctx.userId);
-  if (!profile) return { embeds: [gameHomeEmbed().setTitle('Player Mode · Create Player').setDescription('Mulai sebagai pemain muda 15 tahun. Pilih posisi untuk membuat profil.')], components: playerCreationControls(ctx.userId) };
+  if (!profile) return creationPanel(ctx.userId);
   const enriched = ensureGameplayState(profile, ctx.now);
   await saveIfChanged(ctx.store, profile, enriched);
   return playerHome(enriched, ctx.userId, content);
 }
 
-async function createPlayer(ctx: Ctx, position: Position): Promise<Panel> {
+function creationPanel(userId: string, nationality = 'IDN'): Panel {
+  const chosen = NATIONALITIES.find((item) => item.code === nationality)?.label ?? nationality;
+  return {
+    embeds: [info('⚽ Player Mode · Pemain Baru', `Kamu memulai sebagai **Free Player** berusia 15 tahun. Sebuah klub divisi 3 akan menawarimu kontrak pertama; dari sana kamu naik lewat performa dan transfer.\n\n**Negara asal:** ${chosen} · menentukan tim nasionalmu di turnamen antar negara (tidak memengaruhi klub).\nPilih negara, lalu posisi.`)],
+    components: playerCreationControls(userId, nationality)
+  };
+}
+
+async function createPlayer(ctx: Ctx, position: Position, nationality?: string): Promise<Panel> {
   if (!['GK', 'DF', 'MF', 'FW'].includes(position)) throw new Error('Posisi Player tidak valid.');
   const existing = await ctx.store.get(ctx.userId);
   if (existing) return playerHomeAction(ctx, 'Profil sudah ada.');
-  const profile = createPlayerCareer(ctx.userId, ctx.displayName, position, ctx.now);
+  const known = NATIONALITIES.some((item) => item.code === nationality) ? nationality : undefined;
+  const profile = createPlayerCareer(ctx.userId, ctx.displayName, position, ctx.now, undefined, known);
   await ctx.store.save(profile);
-  return playerHome(profile, ctx.userId, `Selamat datang di ${profile.club}! Kontrak awal ${profile.contract?.seasons ?? 2} season sudah ditandatangani.`);
+  const signed = info('✍️ Signed successfully!', `**${profile.club}** (${leagueLabel(profile.clubState?.leagueId)}) mengontrak **${profile.displayName}** selama ${profile.contract?.seasons ?? 2} musim · gaji ${formatMoney(profile.contract?.salary ?? 0)}/minggu.\nBuktikan dirimu di divisi bawah: tawaran klub lebih besar datang dari performa.`);
+  const home = playerHome(profile, ctx.userId);
+  return { ...home, embeds: [signed, ...(home.embeds ?? [])] };
 }
 
 function eventPanel(profile: PlayerProfile, userId: string, weeklyNotes: string[] = []): Panel {
@@ -241,7 +255,7 @@ async function continueWeek(ctx: Ctx): Promise<Panel> {
 async function skillsPanel(ctx: Ctx): Promise<Panel> {
   const profile = ensureGameplayState(await requireProfile(ctx), ctx.now);
   if ((profile.unassignedMatchExp ?? 0) > 0) return expPanel(profile, ctx.userId);
-  return { embeds: [info(`📈 ${profile.displayName} · Skill`, `Nilai skill 1–99. EXP dari pertandingan, latihan, dan event menaikkan skill satu poin setiap bar penuh.\n\n${formatDetailedSkills(profile)}`)], components: playerWeeklyControls(ctx.userId, profile.weekStage ?? 'READY', profile.careerStatus === 'RETIRED') };
+  return { embeds: [info(`📈 ${profile.displayName} · Skill`, `Setiap skill mulai dari Lv 1 dan naik satu level tiap bar EXP penuh. EXP datang dari pertandingan, latihan, dan event.\n\n${formatDetailedSkills(profile)}`)], components: playerWeeklyControls(ctx.userId, profile.weekStage ?? 'READY', profile.careerStatus === 'RETIRED') };
 }
 
 async function autoAssignExp(ctx: Ctx): Promise<Panel> {
@@ -251,7 +265,7 @@ async function autoAssignExp(ctx: Ctx): Promise<Panel> {
   if (!pending) return playerHomeAction(ctx, 'Tidak ada EXP yang menunggu.');
   const result = assignMatchExpEvenly(profile, skills, ctx.now);
   await ctx.store.save(result.profile);
-  return playerHome(result.profile, ctx.userId, `${result.allocated} EXP dibagi ke ${skills.map((skill) => DETAILED_SKILL_LABELS[skill]).join(', ')}${result.levelsGained ? ` · naik ${result.levelsGained} poin` : ''}.`);
+  return playerHome(result.profile, ctx.userId, `${result.allocated} EXP dibagi ke ${skills.map((skill) => DETAILED_SKILL_LABELS[skill]).join(', ')}${result.levelsGained ? ` · naik ${result.levelsGained} level` : ''}.`);
 }
 
 async function assignPendingExp(ctx: Ctx): Promise<Panel> {
@@ -262,7 +276,7 @@ async function assignPendingExp(ctx: Ctx): Promise<Panel> {
   const result = assignMatchExpEvenly(profile, skills, ctx.now);
   await ctx.store.save(result.profile);
   const target = skills.length === 1 ? DETAILED_SKILL_LABELS[skills[0]] : `${skills.length} skill`;
-  return playerHome(result.profile, ctx.userId, `${result.allocated} dari ${pending} EXP dialokasikan ke ${target}${result.levelsGained ? ` · naik ${result.levelsGained} poin` : ''}.`);
+  return playerHome(result.profile, ctx.userId, `${result.allocated} dari ${pending} EXP dialokasikan ke ${target}${result.levelsGained ? ` · naik ${result.levelsGained} level` : ''}.`);
 }
 
 async function trainingPanel(ctx: Ctx, content?: string): Promise<Panel> {
@@ -297,9 +311,11 @@ async function tricksPanel(ctx: Ctx, content?: string): Promise<Panel> {
   const profile = ensureGameplayState(await requireProfile(ctx), ctx.now);
   const tricks = Object.values(TRICK_CATALOG);
   const meets = (requires: Partial<Record<DetailedSkillId, number>>) => Object.entries(requires).every(([skill, level]) => (profile.detailedSkills![skill as DetailedSkillId]?.level ?? 0) >= (level ?? 0));
-  const lines = tricks.map((trick) => `${profile.unlockedTricks!.includes(trick.id) ? '✅' : meets(trick.requires) ? '🔓' : '🔒'} **${trick.name}** · ${Object.entries(trick.requires).map(([skill, level]) => `${DETAILED_SKILL_LABELS[skill as DetailedSkillId]} ${level}`).join(', ')} · energy ${trick.energyCost} · +${Math.round(trick.matchModifier * 100)}%`).join('\n');
+  // Requirements are stored as skill values; shown as the level the athlete must reach.
+  const requirement = (skill: DetailedSkillId, value: number) => `${DETAILED_SKILL_LABELS[skill]} Lv ${Math.max(1, value - (profile.skillBase?.[skill] ?? value) + 1)} (kamu Lv ${skillDisplayLevel(profile, skill)})`;
+  const lines = tricks.map((trick) => `${profile.unlockedTricks!.includes(trick.id) ? '✅' : meets(trick.requires) ? '🔓' : '🔒'} **${trick.name}** · ${Object.entries(trick.requires).map(([skill, level]) => requirement(skill as DetailedSkillId, level ?? 0)).join(', ')} · energi ${trick.energyCost} · +${Math.round(trick.matchModifier * 100)}%`).join('\n');
   const unlockable = tricks.filter((trick) => !profile.unlockedTricks!.includes(trick.id) && meets(trick.requires));
-  return { content, embeds: [info('Tricks', `${lines}\n\nTrick terbuka menambah peluang gol dan rating di pertandingan.`)], components: trickControls(ctx.userId, unlockable) };
+  return { content, embeds: [info('✨ Tricks', `${lines}\n\nTrick terbuka menambah peluang gol dan rating di pertandingan.`)], components: trickControls(ctx.userId, unlockable) };
 }
 
 async function trainerPanel(ctx: Ctx, content?: string): Promise<Panel> {
@@ -331,29 +347,28 @@ async function playerClubPanel(ctx: Ctx, content?: string): Promise<Panel> {
   const profile = await requireProfile(ctx);
   const enriched = ensureClubState(ensureGameplayState(profile, ctx.now), ctx.now);
   await saveIfChanged(ctx.store, profile, enriched);
-  const offers = (enriched.transferOffers ?? []).filter((offer) => offer.status === 'OPEN').length;
-  return { content, embeds: [playerClubEmbed(enriched)], components: playerClubControls(ctx.userId, offers, transferWindowOpen(enriched)) };
+  return { content, embeds: [playerClubEmbed(enriched)], components: playerClubControls(ctx.userId) };
 }
 
 async function leaguePanel(ctx: Ctx): Promise<Panel> {
   const profile = await requireProfile(ctx);
   const enriched = ensureClubState(profile, ctx.now);
   await saveIfChanged(ctx.store, profile, enriched);
-  return { embeds: [leagueTableEmbed(enriched)], components: playerClubControls(ctx.userId, (enriched.transferOffers ?? []).filter((offer) => offer.status === 'OPEN').length, transferWindowOpen(enriched)) };
+  return { embeds: [leagueTableEmbed(enriched)], components: playerClubControls(ctx.userId) };
 }
 
 async function playerSquadPanel(ctx: Ctx): Promise<Panel> {
   const profile = await requireProfile(ctx);
   const enriched = ensureClubState(profile, ctx.now);
   await saveIfChanged(ctx.store, profile, enriched);
-  return { embeds: [squadEmbed(`${enriched.club} · Squad`, enriched.clubState!.roster)], components: playerClubControls(ctx.userId, (enriched.transferOffers ?? []).filter((offer) => offer.status === 'OPEN').length, transferWindowOpen(enriched)) };
+  return { embeds: [squadEmbed(`${enriched.club} · Squad`, enriched.clubState!.roster)], components: playerClubControls(ctx.userId) };
 }
 
 async function offersPanel(ctx: Ctx, content?: string): Promise<Panel> {
   const profile = await requireProfile(ctx);
   const offers = (profile.transferOffers ?? []).filter((offer) => offer.status === 'OPEN');
-  const lines = offers.map((offer) => `**${offer.clubName}** · league ${offer.leagueId} · ${formatMoney(offer.weeklySalary)}/minggu · ${offer.seasons} season`).join('\n');
-  return { content, embeds: [info('Transfer Offers', `${lines || 'Belum ada tawaran. Klub mengirim tawaran di akhir season jika performa Anda bagus.'}\n\nTransfer window: ${transferWindowOpen(profile) ? 'terbuka' : 'tutup'}.`)], components: transferOfferControls(ctx.userId, offers) };
+  const lines = offers.map((offer) => `**${offer.clubName}** · ${leagueLabel(offer.leagueId)} · ${formatMoney(offer.weeklySalary)}/minggu · ${offer.seasons} musim`).join('\n');
+  return { content, embeds: [info('🔁 Transfer', `${lines || 'Belum ada tawaran. Klub mengirim tawaran di akhir musim kalau performamu bagus.'}\n\nTransfer window: ${transferWindowOpen(profile) ? '🟢 terbuka' : '🔴 tutup'}.`)], components: transferOfferControls(ctx.userId, offers, transferWindowOpen(profile)) };
 }
 
 async function eligibleClubsPanel(ctx: Ctx): Promise<Panel> {
@@ -420,7 +435,7 @@ async function championsPlay(ctx: Ctx, mode: ChampionsLeagueMode): Promise<Panel
 // ------------------------------------------------------------------ Coach Mode
 
 function coachState(profile: PlayerProfile) {
-  return { employed: profile.coach?.status === 'EMPLOYED', seasonComplete: isClubSeasonComplete(profile.coachClubState), retired: profile.coach?.status === 'RETIRED' };
+  return { employed: profile.coach?.status === 'EMPLOYED', seasonComplete: isClubSeasonComplete(profile.coachClubState), retired: profile.coach?.status === 'RETIRED', eventPending: Boolean(profile.coach?.event && !profile.coach.event.resolved), expPending: profile.coach?.unassignedExp ?? 0 };
 }
 
 function coachHome(profile: PlayerProfile, userId: string, content?: string): Panel {
@@ -781,6 +796,7 @@ async function routeComponent(ctx: Ctx, action: string): Promise<Panel> {
     if (!Number.isInteger(round) || !Number.isInteger(rosterVersion)) throw new Error('Komponen lineup tidak valid. Buka ulang Versus Home.');
     return lineupStep(ctx, step, round, rosterVersion);
   }
+  if (action.startsWith('player-create-select:')) return createPlayer(ctx, value(ctx) as Position, action.split(':')[1]);
   if (action.startsWith('player-club-confirm:')) {
     const clubId = Number(action.split(':')[1]);
     const updated = joinOfficialClub(await requireProfile(ctx), clubId, ctx.now);
@@ -825,6 +841,8 @@ async function routeComponent(ctx: Ctx, action: string): Promise<Panel> {
     // Player Mode
     case 'player-create-select':
       return createPlayer(ctx, value(ctx) as Position);
+    case 'player-country-select':
+      return creationPanel(ctx.userId, value(ctx));
     // `match` and `player-event` are kept for panels sent before the single weekly button.
     case 'next-week':
     case 'match':
@@ -840,6 +858,11 @@ async function routeComponent(ctx: Ctx, action: string): Promise<Panel> {
       const result = resolvePlayerWeeklyEvent(await requireProfile(ctx), value(ctx), ctx.now);
       return playMatch(ctx, result.profile, [`${result.event.title}: kamu memilih "${result.choice.label}".`]);
     }
+    case 'coach-menu-select': {
+      const target = value(ctx);
+      if (!COACH_MENU.some(([action]) => action === target)) throw new Error('Menu tidak dikenali.');
+      return routeComponent({ ...ctx, values: [] }, target);
+    }
     case 'player-menu-select': {
       const target = value(ctx);
       if (!PLAYER_MENU.some(([action]) => action === target)) throw new Error('Menu tidak dikenali.');
@@ -853,8 +876,10 @@ async function routeComponent(ctx: Ctx, action: string): Promise<Panel> {
       return trainingPanel(ctx);
     case 'train-select':
       return regularTraining(ctx, value(ctx) as AbilityId);
-    case 'detailed-train':
-      return { embeds: [info('Detailed Training', 'Pilih skill. Training selesai di Weekly Update berikutnya dan memberi EXP langsung ke skill itu.')], components: detailedTrainingControls(ctx.userId) };
+    case 'detailed-train': {
+      const profile = ensureGameplayState(await requireProfile(ctx), ctx.now);
+      return { embeds: [info('🎯 Latihan skill khusus', `Pilih satu skill. Latihannya selesai di minggu berikutnya dan EXP-nya langsung masuk ke skill itu.\n\n${formatDetailedSkills(profile)}`)], components: detailedTrainingControls(ctx.userId, profile) };
+    }
     case 'detailed-train-select':
       return detailedTraining(ctx, value(ctx) as DetailedSkillId);
     case 'player-tricks':
@@ -898,6 +923,7 @@ async function routeComponent(ctx: Ctx, action: string): Promise<Panel> {
     case 'player-club-select':
       return transferPreview(ctx, Number(value(ctx)));
     case 'contract':
+    case 'player-personal':
       return contractPanel(ctx);
     case 'contract-renew': {
       const updated = renewContract(await requireProfile(ctx), ctx.now);

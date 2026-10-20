@@ -120,11 +120,15 @@ test('Player Mode is fully playable through buttons and selects', async () => {
   await withStore(async (store) => {
     const player = new Session(store, '100000000000000001');
     const creation = await player.click('menu-player');
-    assert.ok(creation.ids.some((id) => id.endsWith('player-create-select')));
-    const home = await player.click('player-create-select', ['FW']);
-    assert.match(home.content, /Kontrak awal/);
+    assert.ok(creation.ids.some((id) => id.endsWith('player-country-select')));
+    const brazil = await player.click('player-country-select', ['BRA']);
+    assert.ok(brazil.ids.some((id) => id.endsWith('player-create-select:BRA')), 'the position step carries the nationality');
+    const home = await player.click('player-create-select:BRA', ['FW']);
+    assert.match(home.embeds[0].title ?? '', /Signed successfully/);
     const profile = (await store.get(player.userId))!;
     assert.equal(profile.contract?.state, 'ACTIVE');
+    assert.equal(profile.nationality, 'BRA');
+    assert.match(String(profile.clubState?.leagueId), /^10[1-5]3$/, 'a free player signs with a third-tier club');
 
     // One button plays the week: event (if any) → live match → EXP.
     let week = await player.click('next-week');
@@ -145,9 +149,10 @@ test('Player Mode is fully playable through buttons and selects', async () => {
     assert.ok(!week.ids.some((id) => id.endsWith(':match')), 'no separate match button');
     const menu = await player.click('menu-player');
     assert.ok(menu.ids.some((id) => id.endsWith('player-menu-select')));
-    assert.ok(menu.ids.length <= 5, `hub stays small: ${menu.ids.join(', ')}`);
+    assert.ok(menu.ids.length <= 6, `hub stays small: ${menu.ids.join(', ')}`);
+    await player.click('player-personal');
     await player.click('player-menu-select', ['player-profile']);
-    await player.click('player-menu-select', ['contract']);
+    await player.click('player-menu-select', ['honors']);
     // The match rolls injuries with real randomness; an injured player cannot train, so heal first.
     const afterMatch = (await store.get(player.userId))!;
     if ((afterMatch.injury?.weeksRemaining ?? 0) > 0) await store.save({ ...afterMatch, injury: undefined });

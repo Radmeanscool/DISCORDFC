@@ -9,6 +9,8 @@ import type { RecoveryClubRecord } from '../config/recovery-data.js';
 import { GAME_BALANCE } from '../config/game-balance.js';
 import { ratingSkillsFor, skillLevelCost } from '../domain/player-formulas.js';
 import { MACRO_SKILL_WEIGHTS } from '../domain/skill-engine.js';
+import { NATIONALITIES } from '../domain/engine.js';
+import { skillDisplayLevel } from '../domain/gameplay-engine.js';
 import {
   COACH_ABILITIES,
   COACH_ABILITY_LABELS,
@@ -92,14 +94,23 @@ export function mainMenuControls(userId: string): ActionRowBuilder<ButtonBuilder
   )];
 }
 
+const POSITION_HINTS: Record<Position, string> = {
+  GK: 'Penjaga gawang · penyelamatan dan clean sheet',
+  DF: 'Bek · duel, sundulan, menahan lawan',
+  MF: 'Gelandang · umpan, dribel, kerja sama',
+  FW: 'Penyerang · tembakan dan gol'
+};
+
 function positionOptions(current?: Position): StringSelectMenuOptionBuilder[] {
-  return (['GK', 'DF', 'MF', 'FW'] as const).map((position) => option(position, POSITION_LABELS[position], undefined, position === current));
+  return (['GK', 'DF', 'MF', 'FW'] as const).map((position) => option(position, POSITION_LABELS[position], POSITION_HINTS[position], position === current));
 }
 
-export function playerCreationControls(userId: string): Row[] {
+/** Creation: nationality (national team only) then position. The first club is always a random third-tier side. */
+export function playerCreationControls(userId: string, nationality = 'IDN'): Row[] {
   return [
-    select(userId, 'player-create-select', 'Pilih posisi awal pemain', positionOptions()),
-    buttons(button(userId, 'menu-home', 'Back to Game Home'))
+    select(userId, 'player-country-select', '1) Pilih negara asal (tim nasional)', NATIONALITIES.map((item) => option(item.code, item.label, 'Menentukan tim nasional di turnamen antar negara', item.code === nationality))),
+    select(userId, `player-create-select:${nationality}`, '2) Pilih posisi untuk mulai', positionOptions()),
+    buttons(button(userId, 'menu-home', '⬅ Game Home'))
   ];
 }
 
@@ -116,20 +127,19 @@ const CONTINUE_LABEL: Record<PlayerWeeklyStage, string> = {
   EXP_PENDING: '▶ Alokasikan EXP'
 };
 
-/** Everything that is not part of the weekly loop lives in one menu. */
+/**
+ * The hub mirrors the original game's tab bar (Home · Ability · Training · Personal ·
+ * Club) with Next Week as the action; everything else sits in one menu.
+ */
 export const PLAYER_MENU: ReadonlyArray<readonly [action: string, label: string, description: string]> = [
-  ['player-profile', '👤 Profil lengkap', 'Skill, kondisi, statistik, dan status'],
+  ['player-profile', '🏠 Home · profil', 'Profil, kondisi, statistik, dan status'],
   ['player-league', '📊 Klasemen', 'Tabel liga klubmu'],
-  ['contract', '📝 Kontrak', 'Gaji, durasi, perpanjang, minta kenaikan'],
-  ['player-culture', '🎭 Personal', 'Culture study: charm dan EXP skill'],
-  ['player-trainer', '🧑‍🏫 Trainer', 'Sewa pelatih pribadi'],
-  ['player-tricks', '✨ Tricks', 'Buka trik yang membantu di pertandingan'],
+  ['honors', '🏅 Hall of Honor', 'Penghargaan dan achievement'],
+  ['player-champions', '🏆 Champions', 'Kompetisi Champions League'],
   ['injury', '🩹 Recovery & cedera', 'Perawatan cedera dan pemulihan'],
   ['daily-reward', '🎁 Daily reward', 'Klaim hadiah harian'],
-  ['honors', '🏅 Honors', 'Penghargaan dan achievement'],
-  ['player-champions', '🏆 Champions', 'Kompetisi Champions League'],
   ['player-career', '📜 Karier', 'Riwayat musim, pensiun, rebirth'],
-  ['menu-home', '🏠 Game Home', 'Kembali ke menu utama'],
+  ['menu-home', '🎮 Game Home', 'Kembali ke menu utama'],
   ['menu-coach', '🧑‍💼 Coach Mode', 'Pindah ke mode pelatih'],
   ['versus-home', '⚔️ Versus Mode', 'Pindah ke liga online']
 ];
@@ -141,9 +151,10 @@ export function playerWeeklyControls(userId: string, stage: PlayerWeeklyStage = 
   return [
     buttons(
       primary,
-      button(userId, 'train', '🏋️ Latihan', ButtonStyle.Secondary, retired),
-      button(userId, 'skills', '📈 Skill', ButtonStyle.Secondary),
-      button(userId, 'club', '🏟️ Klub')
+      button(userId, 'skills', 'Ability'),
+      button(userId, 'train', 'Training', ButtonStyle.Secondary, retired),
+      button(userId, 'player-personal', 'Personal', ButtonStyle.Secondary, retired),
+      button(userId, 'club', 'Club')
     ),
     select(userId, 'player-menu-select', '☰ Menu lainnya…', PLAYER_MENU.map(([action, label, description]) => option(action, label, description)))
   ];
@@ -156,17 +167,18 @@ export function playerEventControls(userId: string, event: PlayerWeeklyEvent): R
   ];
 }
 
+const HUB = (userId: string) => button(userId, 'menu-player', '⬅ Hub');
+
 export function playerCareerControls(userId: string, retired: boolean, canRetire: boolean, position: Position): Row[] {
   if (retired) {
     return [
       select(userId, 'player-rebirth-select', 'Rebirth · pilih posisi generasi berikutnya', positionOptions(position)),
-      buttons(button(userId, 'menu-player', 'Player Home', ButtonStyle.Primary), button(userId, 'menu-home', 'Game Home'))
+      buttons(HUB(userId))
     ];
   }
   return [buttons(
-    button(userId, 'player-retire', 'Retire', ButtonStyle.Danger, !canRetire),
-    button(userId, 'menu-player', 'Player Home', ButtonStyle.Primary),
-    button(userId, 'menu-home', 'Game Home')
+    button(userId, 'player-retire', 'Pensiun', ButtonStyle.Danger, !canRetire),
+    HUB(userId)
   )];
 }
 
@@ -177,26 +189,31 @@ export function retireConfirmControls(userId: string): ActionRowBuilder<ButtonBu
   )];
 }
 
-export function detailedTrainingControls(userId: string): Row[] {
+export function detailedTrainingControls(userId: string, profile?: SkillView): Row[] {
   return [
-    select(userId, 'detailed-train-select', 'Pilih detailed skill untuk dilatih', DETAILED_SKILLS.map((skill) => option(skill, DETAILED_SKILL_LABELS[skill]))),
-    buttons(button(userId, 'train', 'Back to Training'), button(userId, 'menu-player', 'Player Home', ButtonStyle.Primary))
+    select(userId, 'detailed-train-select', 'Pilih skill yang dilatih khusus', skillOptions(profile)),
+    buttons(button(userId, 'train', '⬅ Training'), HUB(userId))
   ];
 }
 
 /** Multi-select: one skill takes the whole pool, several skills split it evenly. */
 /** EXP step after a match: pick skills (shared evenly) or let the position's key skills take it. */
-export function pendingExpControls(userId: string, profile?: Pick<PlayerProfile, 'position' | 'detailedSkills' | 'unassignedMatchExp'>): Row[] {
+function skillOptions(profile?: SkillView): StringSelectMenuOptionBuilder[] {
   const key = new Set(profile ? ratingSkillsFor(profile.position) : []);
-  const skillOptions = DETAILED_SKILLS.map((skill) => {
+  return DETAILED_SKILLS.map((skill) => {
     const state = profile?.detailedSkills?.[skill];
-    const label = state ? `${DETAILED_SKILL_LABELS[skill]} · ${state.level}` : DETAILED_SKILL_LABELS[skill];
-    const description = state ? `${key.has(skill) ? 'Skill utama · ' : ''}${state.exp}/${skillLevelCost(state.level)} EXP menuju +1` : undefined;
-    return option(skill, label, description);
+    if (!profile || !state) return option(skill, DETAILED_SKILL_LABELS[skill]);
+    const level = skillDisplayLevel(profile, skill);
+    return option(skill, `${DETAILED_SKILL_LABELS[skill]} · Lv ${level}`, `${key.has(skill) ? '★ Skill utama · ' : ''}${state.exp}/${skillLevelCost(state.level)} EXP menuju Lv ${level + 1}`);
   });
+}
+
+type SkillView = Pick<PlayerProfile, 'position' | 'detailedSkills' | 'skillBase' | 'rebirthCount'> & { unassignedMatchExp?: number };
+
+export function pendingExpControls(userId: string, profile?: SkillView): Row[] {
   const pending = profile?.unassignedMatchExp ?? 0;
   return [
-    select(userId, 'pending-exp-select', pending ? `Salurkan ${pending} EXP ke… (pilih beberapa = dibagi rata)` : 'Pilih skill (beberapa = dibagi rata)', skillOptions, 1, DETAILED_SKILLS.length),
+    select(userId, 'pending-exp-select', pending ? `Salurkan ${pending} EXP ke… (pilih beberapa = dibagi rata)` : 'Pilih skill (beberapa = dibagi rata)', skillOptions(profile), 1, DETAILED_SKILLS.length),
     buttons(
       button(userId, 'pending-exp-auto', '⚡ Auto: skill utama', ButtonStyle.Primary),
       button(userId, 'player-league', '📊 Klasemen'),
@@ -210,13 +227,12 @@ export function trainingControls(userId: string): Row[] {
   // The description lists the skills that actually receive the EXP.
   const skillsOf = (ability: AbilityId) => (Object.keys(MACRO_SKILL_WEIGHTS[ability]) as DetailedSkillId[]).map((skill) => DETAILED_SKILL_LABELS[skill]).join(', ');
   return [
-    select(userId, 'train-select', 'Latihan rutin (1x per minggu) · pilih fokus', abilities.map(([value, label]) => option(value, label, skillsOf(value)))),
+    select(userId, 'train-select', 'Regular Training (1x per minggu) · pilih fokus', abilities.map(([value, label]) => option(value, label, skillsOf(value)))),
     buttons(
-      button(userId, 'detailed-train', 'Latihan skill khusus', ButtonStyle.Primary),
-      button(userId, 'player-tricks', 'Tricks'),
-      button(userId, 'player-trainer', 'Trainer'),
-      button(userId, 'player-culture', 'Personal'),
-      button(userId, 'menu-player', '⬅ Hub')
+      button(userId, 'detailed-train', 'Skill Training'),
+      button(userId, 'player-tricks', 'Trick Training'),
+      button(userId, 'player-trainer', 'Personal Coach'),
+      HUB(userId)
     )
   ];
 }
@@ -224,7 +240,7 @@ export function trainingControls(userId: string): Row[] {
 export function trickControls(userId: string, unlockable: TrickDefinition[]): Row[] {
   const rows: Row[] = [];
   if (unlockable.length) rows.push(select(userId, 'trick-unlock-select', 'Unlock trick yang syaratnya terpenuhi', unlockable.map((trick) => option(trick.id, trick.name, `Energy ${trick.energyCost} · bonus +${Math.round(trick.matchModifier * 100)}%`))));
-  rows.push(buttons(button(userId, 'train', 'Back to Training'), button(userId, 'menu-player', 'Player Home', ButtonStyle.Primary)));
+  rows.push(buttons(button(userId, 'train', '⬅ Training'), HUB(userId)));
   return rows;
 }
 
@@ -232,88 +248,87 @@ export function trainerControls(userId: string, hasActiveTrainer: boolean): Row[
   const rows: Row[] = [];
   if (!hasActiveTrainer) rows.push(select(userId, 'trainer-hire-select', 'Hire personal trainer', Object.values(TRAINER_CATALOG).map((trainer) => option(trainer.id, `${trainer.tier} · ${trainer.type}`, `${trainer.weeklyCost}/minggu · ratio ${Math.round(trainer.ratio * 100)}%`))));
   rows.push(buttons(
-    button(userId, 'trainer-release', 'Release Trainer', ButtonStyle.Danger, !hasActiveTrainer),
-    button(userId, 'train', 'Back to Training'),
-    button(userId, 'menu-player', 'Player Home', ButtonStyle.Primary)
+    button(userId, 'trainer-release', 'Berhentikan coach', ButtonStyle.Danger, !hasActiveTrainer),
+    button(userId, 'train', '⬅ Training'),
+    HUB(userId)
   ));
   return rows;
 }
 
 export function playerInjuryControls(userId: string): Row[] {
   return [
-    select(userId, 'injury-treatment-select', 'Pilih recovery action', [option('view', 'Lihat status cedera'), option('basic-treatment', 'Basic treatment'), option('expert-treatment', 'Expert treatment')]),
-    buttons(button(userId, 'menu-player', 'Player Home', ButtonStyle.Primary))
+    select(userId, 'injury-treatment-select', 'Pilih perawatan', [option('view', 'Lihat status cedera'), option('basic-treatment', 'Basic Treat'), option('expert-treatment', 'Expert Treat')]),
+    buttons(HUB(userId))
   ];
 }
 
 export function playerCultureControls(userId: string): Row[] {
   return [
-    select(userId, 'culture-select', 'Pilih subjek Culture Study', [option('science', 'Science'), option('arts', 'Arts'), option('history', 'History')]),
-    buttons(button(userId, 'train', 'Back to Training'), button(userId, 'menu-player', 'Player Home', ButtonStyle.Primary))
+    select(userId, 'culture-select', 'Pilih subjek Culture Study', [option('science', 'Learn science'), option('arts', 'Learn arts'), option('history', 'Learn history')]),
+    buttons(button(userId, 'player-personal', '⬅ Personal'), HUB(userId))
   ];
 }
 
 /** The athlete does not manage the club: no club match, market, or tactic controls here. */
-export function playerClubControls(userId: string, openOffers = 0, transferWindow = true): ActionRowBuilder<ButtonBuilder>[] {
-  return [
-    buttons(
-      button(userId, 'player-league', 'League Table'),
-      button(userId, 'player-squad', 'Squad'),
-      button(userId, 'player-offers', openOffers ? `Transfer Offers (${openOffers})` : 'Transfer Offers', openOffers ? ButtonStyle.Success : ButtonStyle.Secondary),
-      button(userId, 'player-clubs', 'Change Club', ButtonStyle.Primary, !transferWindow)
-    ),
-    buttons(button(userId, 'menu-player', 'Player Home', ButtonStyle.Primary), button(userId, 'menu-home', 'Game Home'))
-  ];
+/** Club tab: league table and squad. Transfers live under Personal, as in the original. */
+export function playerClubControls(userId: string): ActionRowBuilder<ButtonBuilder>[] {
+  return [buttons(
+    button(userId, 'player-league', 'League Table'),
+    button(userId, 'player-squad', 'Squad'),
+    HUB(userId)
+  )];
 }
 
 export function officialClubControls(userId: string, clubs: RecoveryClubRecord[]): Row[] {
   return [
     select(userId, 'player-club-select', 'Pilih klub tujuan', clubs.map((club) => option(String(club.id), `${club.nameEn} · League ${club.league}`, `Grade ${club.grade} · Prestige ${club.prestige.toFixed(2)}`))),
-    buttons(button(userId, 'club', 'Back to Club'), button(userId, 'menu-player', 'Player Home', ButtonStyle.Primary))
+    buttons(button(userId, 'player-offers', '⬅ Transfer'), HUB(userId))
   ];
 }
 
 export function transferConfirmControls(userId: string, clubId: number): ActionRowBuilder<ButtonBuilder>[] {
   return [buttons(
     button(userId, `player-club-confirm:${clubId}`, 'Confirm Transfer', ButtonStyle.Success),
-    button(userId, 'player-clubs', 'Choose Another'),
-    button(userId, 'club', 'Cancel', ButtonStyle.Danger)
+    button(userId, 'player-clubs', 'Pilih klub lain'),
+    button(userId, 'player-offers', 'Batal', ButtonStyle.Danger)
   )];
 }
 
-export function transferOfferControls(userId: string, offers: PlayerTransferOffer[]): Row[] {
+export function transferOfferControls(userId: string, offers: PlayerTransferOffer[], transferWindow = true): Row[] {
   const rows: Row[] = [];
   if (offers.length) {
     const options = (verb: string) => offers.map((offer) => option(offer.id, `${verb} ${offer.clubName}`, `${offer.weeklySalary}/minggu · ${offer.seasons} season · league ${offer.leagueId}`));
     rows.push(select(userId, 'player-offer-accept-select', 'Terima tawaran transfer', options('Terima')));
     rows.push(select(userId, 'player-offer-decline-select', 'Tolak tawaran transfer', options('Tolak')));
   }
-  rows.push(buttons(button(userId, 'club', 'Back to Club'), button(userId, 'menu-player', 'Player Home', ButtonStyle.Primary)));
+  rows.push(buttons(button(userId, 'player-clubs', 'Cari klub (transfer window)', ButtonStyle.Secondary, !transferWindow), button(userId, 'player-personal', '⬅ Personal'), HUB(userId)));
   return rows;
 }
 
+/** Personal tab: contract, Ask for pay, negotiation/renewal, transfer, and culture study. */
 export function contractControls(userId: string, canRenew: boolean, canRaise: boolean): ActionRowBuilder<ButtonBuilder>[] {
   return [buttons(
-    button(userId, 'contract-renew', `Renew (${GAME_BALANCE.contract.defaultSeasons} season)`, ButtonStyle.Success, !canRenew),
-    button(userId, 'contract-raise', 'Request Raise', ButtonStyle.Primary, !canRaise),
-    button(userId, 'menu-player', 'Player Home')
+    button(userId, 'contract-raise', 'Ask for pay', ButtonStyle.Primary, !canRaise),
+    button(userId, 'contract-renew', 'Negotiation', ButtonStyle.Success, !canRenew),
+    button(userId, 'player-offers', 'Transfer'),
+    button(userId, 'player-culture', 'Culture Study'),
+    HUB(userId)
   )];
 }
 
 export function honorsControls(userId: string, claimable: AchievementState[]): Row[] {
   const rows: Row[] = [];
   if (claimable.length) rows.push(select(userId, 'achievement-claim-select', 'Klaim achievement', claimable.map((item) => option(item.id, item.title, `${item.rewardMoney} money + ${item.rewardExp} EXP`))));
-  rows.push(buttons(button(userId, 'menu-player', 'Player Home', ButtonStyle.Primary), button(userId, 'menu-home', 'Game Home')));
+  rows.push(buttons(HUB(userId)));
   return rows;
 }
 
 export function championsControls(userId: string, mode: 'PLAYER' | 'COACH'): ActionRowBuilder<ButtonBuilder>[] {
   const prefix = mode === 'PLAYER' ? 'player' : 'coach';
   return [buttons(
+    button(userId, `${prefix}-champions-play`, '▶ Main Round', ButtonStyle.Success),
     button(userId, `${prefix}-champions-status`, 'Status'),
-    button(userId, `${prefix}-champions-play`, 'Play Round', ButtonStyle.Success),
-    button(userId, mode === 'PLAYER' ? 'menu-player' : 'menu-coach', `${mode === 'PLAYER' ? 'Player' : 'Coach'} Home`, ButtonStyle.Primary),
-    button(userId, 'menu-home', 'Game Home')
+    button(userId, mode === 'PLAYER' ? 'menu-player' : 'menu-coach', '⬅ Hub')
   )];
 }
 
@@ -323,44 +338,53 @@ export interface CoachControlState {
   employed: boolean;
   seasonComplete: boolean;
   retired: boolean;
+  eventPending?: boolean;
+  expPending?: number;
 }
 
-export function coachControls(userId: string, state: CoachControlState = { employed: true, seasonComplete: false, retired: false }): ActionRowBuilder<ButtonBuilder>[] {
+export const COACH_MENU: ReadonlyArray<readonly [action: string, label: string, description: string]> = [
+  ['coach-profile', '🏠 Home · profil coach', 'Approval, target board, reputasi'],
+  ['coach-event', '🗳️ Keputusan', 'Event klub yang menunggu keputusan'],
+  ['coach-job', '💼 Job Offers', 'Tawaran melatih klub lain'],
+  ['coach-champions', '🏆 Champions', 'Kompetisi Champions League'],
+  ['coach-season-end', '🏁 Season Settlement', 'Tutup musim setelah fixture terakhir'],
+  ['coach-career', '📜 Karier', 'Riwayat, pensiun, rebirth'],
+  ['menu-home', '🎮 Game Home', 'Kembali ke menu utama'],
+  ['menu-player', '⚽ Player Mode', 'Pindah ke mode pemain'],
+  ['versus-home', '⚔️ Versus Mode', 'Pindah ke liga online']
+];
+
+/** One action that follows the Coach season (round → decision → settlement), the main tabs, and a menu. */
+export function coachControls(userId: string, state: CoachControlState = { employed: true, seasonComplete: false, retired: false }): Row[] {
   const active = state.employed && !state.retired;
+  const primary = state.retired ? button(userId, 'coach-career', '🔄 Rebirth', ButtonStyle.Success)
+    : !state.employed ? button(userId, 'coach-job', '▶ Cari Klub', ButtonStyle.Success)
+      : state.seasonComplete ? button(userId, 'coach-season-end', '▶ Tutup Musim', ButtonStyle.Success)
+        : state.eventPending ? button(userId, 'coach-event', '▶ Keputusan', ButtonStyle.Success)
+          : button(userId, 'coach-round', '▶ Play Round', ButtonStyle.Success);
   return [
     buttons(
-      button(userId, 'coach-profile', 'Coach Profile', ButtonStyle.Primary),
-      button(userId, 'coach-round', 'Play Round', ButtonStyle.Success, !active || state.seasonComplete),
-      button(userId, 'coach-club', 'Club Office'),
-      button(userId, 'coach-event', 'Decision')
+      primary,
+      button(userId, 'coach-club', 'Squad', ButtonStyle.Secondary, !active),
+      button(userId, 'coach-strategy', 'Tactics', ButtonStyle.Secondary, !active),
+      button(userId, 'coach-market', 'Market', ButtonStyle.Secondary, !active),
+      button(userId, 'coach-exp', state.expPending ? `Coach (${state.expPending} EXP)` : 'Coach', state.expPending ? ButtonStyle.Primary : ButtonStyle.Secondary)
     ),
-    buttons(
-      button(userId, 'coach-exp', 'Coach EXP'),
-      button(userId, 'coach-strategy', 'Formation/Tactic', ButtonStyle.Secondary, !active),
-      button(userId, 'coach-job', 'Job Offers'),
-      button(userId, 'coach-champions', 'Champions', ButtonStyle.Secondary, !active)
-    ),
-    buttons(
-      button(userId, 'coach-market', 'Transfer Market', ButtonStyle.Secondary, !active),
-      button(userId, 'coach-season-end', 'Season Settlement', ButtonStyle.Success, !active || !state.seasonComplete),
-      button(userId, 'coach-career', state.retired ? 'Rebirth' : 'Career'),
-      button(userId, 'menu-home', 'Game Home'),
-      button(userId, 'versus-home', 'Versus Mode', ButtonStyle.Success)
-    )
+    select(userId, 'coach-menu-select', '☰ Menu lainnya…', COACH_MENU.map(([action, label, description]) => option(action, label, description)))
   ];
 }
 
 export function coachEventControls(userId: string, choices: Array<{ id: string; label: string }>): Row[] {
   return [
-    select(userId, 'coach-event-select', 'Pilih keputusan Coach event', choices.map((choice) => option(choice.id, choice.label))),
-    buttons(button(userId, 'menu-coach', 'Coach Home', ButtonStyle.Primary), button(userId, 'menu-home', 'Game Home'))
+    select(userId, 'coach-event-select', 'Pilih keputusanmu…', choices.map((choice) => option(choice.id, choice.label))),
+    buttons(button(userId, 'menu-coach', '⬅ Hub'))
   ];
 }
 
 export function coachExpControls(userId: string, remaining: number): Row[] {
   return [
-    select(userId, 'coach-exp-select', `Pilih ability · pending ${remaining} EXP`, COACH_ABILITIES.map((ability) => option(ability, COACH_ABILITY_LABELS[ability], `Assign seluruh pending EXP (${remaining})`))),
-    buttons(button(userId, 'menu-coach', 'Coach Home', ButtonStyle.Primary), button(userId, 'menu-home', 'Game Home'))
+    select(userId, 'coach-exp-select', `Salurkan ${remaining} EXP ke…`, COACH_ABILITIES.map((ability) => option(ability, COACH_ABILITY_LABELS[ability], `Semua ${remaining} EXP ke ability ini`))),
+    buttons(button(userId, 'menu-coach', '⬅ Hub'))
   ];
 }
 
@@ -374,7 +398,7 @@ function strategySelects(userId: string, prefix: string, formation: FormationId,
 export function coachStrategyControls(userId: string, formation: FormationId, tactic: TacticId): Row[] {
   return [
     ...strategySelects(userId, 'coach', formation, tactic),
-    buttons(button(userId, 'menu-coach', 'Coach Home', ButtonStyle.Primary), button(userId, 'menu-home', 'Game Home'))
+    buttons(button(userId, 'menu-coach', '⬅ Hub'))
   ];
 }
 
@@ -387,8 +411,7 @@ export function coachJobControls(userId: string, offers: Array<{ id: string; clu
   }
   rows.push(buttons(
     button(userId, 'coach-job-generate', 'Cari Tawaran', ButtonStyle.Success, !canGenerate),
-    button(userId, 'menu-coach', 'Coach Home', ButtonStyle.Primary),
-    button(userId, 'menu-home', 'Game Home')
+    button(userId, 'menu-coach', '⬅ Hub')
   ));
   return rows;
 }
@@ -398,15 +421,14 @@ export function coachMarketControls(userId: string, listings: MarketListing[], s
   const open = listings.filter((listing) => listing.status === 'OPEN');
   if (open.length) rows.push(select(userId, 'coach-buy-select', 'Beli pemain (dibayar dari assets club)', open.map((listing) => option(listing.id, `${listing.player.name} · ${listing.player.position} · OVR ${listing.player.overall}`, `Harga ${listing.price} · usia ${listing.player.age}`))));
   if (sellable.length) rows.push(select(userId, 'coach-sell-select', 'Jual pemain (kedalaman minimum dijaga)', sellable.map((player) => option(player.id, `${player.name} · ${player.position} · OVR ${player.overall}`, `Harga jual ${sellPrice(player)} · usia ${player.age}`))));
-  rows.push(buttons(button(userId, 'menu-coach', 'Coach Home', ButtonStyle.Primary), button(userId, 'menu-home', 'Game Home')));
+  rows.push(buttons(button(userId, 'menu-coach', '⬅ Hub')));
   return rows;
 }
 
 export function coachCareerControls(userId: string, retired: boolean): ActionRowBuilder<ButtonBuilder>[] {
   return [buttons(
-    retired ? button(userId, 'coach-rebirth', 'Rebirth Coach', ButtonStyle.Success) : button(userId, 'coach-retire', 'Retire Coach', ButtonStyle.Danger),
-    button(userId, 'menu-coach', 'Coach Home', ButtonStyle.Primary),
-    button(userId, 'menu-home', 'Game Home')
+    retired ? button(userId, 'coach-rebirth', 'Rebirth Coach', ButtonStyle.Success) : button(userId, 'coach-retire', 'Pensiun', ButtonStyle.Danger),
+    button(userId, 'menu-coach', '⬅ Hub')
   )];
 }
 

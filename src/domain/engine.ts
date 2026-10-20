@@ -4,6 +4,7 @@ import { calculatePlayerRating, opponentRatingFor, personalMatchRewards, simulat
 import { distributeSkillExp, MACRO_SKILL_WEIGHTS } from './skill-engine.js';
 import {
   ABILITY_LABELS,
+  DETAILED_SKILLS,
   deriveMacroStats,
   normalizeDetailedSkills,
   type AbilityId,
@@ -72,6 +73,43 @@ function isoNow(now: Date): string {
 
 function defaultAbilities(): Record<AbilityId, AbilityState> {
   return Object.fromEntries(ABILITIES.map((id) => [id, { level: 1, exp: 0 }])) as Record<AbilityId, AbilityState>;
+}
+
+/**
+ * Birthplaces offered at creation. Recordings list China, Argentina, Brazil,
+ * England, Spain, Italy, Germany, France, Malaysia, and Others; Indonesia is
+ * added for this community. Nationality is for national-team tournaments only.
+ */
+export const NATIONALITIES: ReadonlyArray<{ code: string; label: string }> = [
+  { code: 'IDN', label: '🇮🇩 Indonesia' },
+  { code: 'ENG', label: '🏴 Inggris' },
+  { code: 'ESP', label: '🇪🇸 Spanyol' },
+  { code: 'ITA', label: '🇮🇹 Italia' },
+  { code: 'GER', label: '🇩🇪 Jerman' },
+  { code: 'FRA', label: '🇫🇷 Prancis' },
+  { code: 'BRA', label: '🇧🇷 Brasil' },
+  { code: 'ARG', label: '🇦🇷 Argentina' },
+  { code: 'CHN', label: '🇨🇳 China' },
+  { code: 'MAS', label: '🇲🇾 Malaysia' },
+  { code: 'OTH', label: '🌍 Lainnya' }
+];
+
+/**
+ * Recordings show a 15-year-old free player signing with a third-tier club
+ * (US Boulogne, or a side whose rivals are Sete, Béziers, and Evian — all in
+ * recovered league 10x3). The club is drawn at random from every third tier.
+ * Names that appear in two leagues are skipped so name lookups stay unambiguous.
+ */
+export function randomStarterClub(rng: RandomSource): string {
+  const counts = new Map<string, number>();
+  for (const club of RECOVERY_CLUBS) counts.set(club.nameEn, (counts.get(club.nameEn) ?? 0) + 1);
+  const pool = RECOVERY_CLUBS.filter((club) => /^10[1-5]3$/.test(String(club.league)) && counts.get(club.nameEn) === 1);
+  return pool.length ? pool[Math.floor(rng.next() * pool.length)].nameEn : starterClubName();
+}
+
+/** Skill values at the start of a career generation, the reference for displayed levels. */
+export function skillBaseFrom(detailedSkills: DetailedSkills): Record<DetailedSkillId, number> {
+  return Object.fromEntries(DETAILED_SKILLS.map((skill) => [skill, detailedSkills[skill].level])) as Record<DetailedSkillId, number>;
 }
 
 export function starterClubName(): string {
@@ -151,6 +189,7 @@ export function createInitialProfile(userId: string, displayName: string, positi
     level: 1,
     totalExp: 0,
     stats: deriveMacroStats(detailedSkills),
+    skillBase: skillBaseFrom(detailedSkills),
     abilities: defaultAbilities(),
     career: {
       appearances: 0,

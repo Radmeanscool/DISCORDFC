@@ -1,7 +1,7 @@
 import { GAME_BALANCE } from '../config/game-balance.js';
 import { payWeeklySalary, signContract } from './contract-engine.js';
 import { ensureClubState } from './club-engine.js';
-import { applyTimeRecovery, createInitialProfile, getRating, initialDetailedSkills, MathRandomSource, starterClubName, type RandomSource } from './engine.js';
+import { applyTimeRecovery, createInitialProfile, getRating, initialDetailedSkills, MathRandomSource, randomStarterClub, skillBaseFrom, type RandomSource } from './engine.js';
 import { formatMoney } from './format.js';
 import { ensureSeasonTracking, finishPlayerSeason, freshSeasonStats, playPlayerFixture } from './player-match-engine.js';
 import { withInjuryEvent } from './match-timeline.js';
@@ -84,10 +84,36 @@ export function ensureGameplayState(profileInput: PlayerProfile, now = new Date(
   profile.unlockedTricks ??= [];
   profile.honors ??= [];
   profile.detailedSkills = normalizeDetailedSkills(profile.detailedSkills ?? legacyToDetailed(profile), 1);
+  profile.skillBase ??= legacySkillBase(profile);
   profile.updatedAt = profile.updatedAt || iso(now);
   profile.lastActionAt = profile.lastActionAt || iso(now);
   applyTimeRecovery(profile, now);
   return profile;
+}
+
+/** Saves created before skill levels: the generation started at the position preset plus its rebirth bonus. */
+function legacySkillBase(profile: PlayerProfile): Record<DetailedSkillId, number> {
+  const bonus = Math.min(GAME_BALANCE.rebirth.maxSkillBonus, (profile.rebirthCount ?? 0) * GAME_BALANCE.rebirth.skillBonusPerRebirth);
+  const preset = initialDetailedSkills(profile.position);
+  return Object.fromEntries(DETAILED_SKILLS.map((skill) => [skill, Math.min(GAME_BALANCE.skillProgression.maxLevel, preset[skill].level + bonus)])) as Record<DetailedSkillId, number>;
+}
+
+/**
+ * Displayed skill level: every point gained since this career generation began
+ * is one level, so a new athlete starts at Lv 1 everywhere and climbs step by step
+ * (recordings show Shots around Lv 12 after twenty matches). The underlying
+ * 1–99 value still drives the match engine and rating, unchanged.
+ */
+export function skillDisplayLevel(profile: Pick<PlayerProfile, 'skillBase' | 'detailedSkills' | 'position' | 'rebirthCount'>, skill: DetailedSkillId): number {
+  const value = profile.detailedSkills?.[skill]?.level ?? 1;
+  const base = profile.skillBase?.[skill] ?? legacySkillBase(profile as PlayerProfile)[skill];
+  return Math.max(1, value - base + 1);
+}
+
+/** Highest displayed level for a skill (its value reaches 99). */
+export function skillMaxDisplayLevel(profile: Pick<PlayerProfile, 'skillBase' | 'detailedSkills' | 'position' | 'rebirthCount'>, skill: DetailedSkillId): number {
+  const base = profile.skillBase?.[skill] ?? legacySkillBase(profile as PlayerProfile)[skill];
+  return Math.max(1, GAME_BALANCE.skillProgression.maxLevel - base + 1);
 }
 
 function syncMacroStats(profile: PlayerProfile): void {
@@ -589,9 +615,12 @@ export function advanceWeek(profileInput: PlayerProfile, now = new Date(), rng: 
   return { ...played, narrative: [...prepared.narrative, ...played.narrative] };
 }
 
-/** A new athlete: 15 years old at the starter club, with an initial game-time contract so salary is paid from week 1. */
-export function createPlayerCareer(userId: string, displayName: string, position: Position, now = new Date(), rng: RandomSource = new MathRandomSource()): PlayerProfile {
-  const profile = ensureClubState(createInitialProfile(userId, displayName, position, now), now, rng);
+/** A new athlete: 15 years old, signed by a random third-tier club, paid from week 1. Nationality never picks the club. */
+export function createPlayerCareer(userId: string, displayName: string, position: Position, now = new Date(), rng: RandomSource = new MathRandomSource(), nationality?: string): PlayerProfile {
+  const initial = createInitialProfile(userId, displayName, position, now);
+  if (nationality) initial.nationality = nationality;
+  initial.club = randomStarterClub(rng);
+  const profile = ensureClubState(initial, now, rng);
   return signContract(profile, now, GAME_BALANCE.contract.defaultSeasons, 'INITIAL');
 }
 
@@ -611,10 +640,10 @@ export function retirePlayer(profileInput: PlayerProfile, now = new Date()): Gam
 }
 
 /**
- * Starts the next career generation: a 15-year-old at the starter club with the
+ * Starts the next career generation: a 15-year-old at a random third-tier club with the
  * position preset plus a rebirth bonus, keeping money, honors, and career history.
  */
-export function rebirthPlayer(profileInput: PlayerProfile, now = new Date(), position?: Position): GameplayActionResult {
+export function rebirthPlayer(profileInput: PlayerProfile, now = new Date(), position?: Position, rng: RandomSource = new MathRandomSource()): GameplayActionResult {
   const profile = ensureGameplayState(profileInput, now);
   if (profile.careerStatus !== 'RETIRED') throw new Error('Rebirth hanya tersedia setelah retirement.');
   const rebirthCount = (profile.rebirthCount ?? 0) + 1;
@@ -627,10 +656,11 @@ export function rebirthPlayer(profileInput: PlayerProfile, now = new Date(), pos
   profile.level = GAME_BALANCE.rebirth.startingLevel;
   profile.totalExp = 0;
   profile.detailedSkills = detailedSkills;
+  profile.skillBase = skillBaseFrom(detailedSkills);
   profile.stats = deriveMacroStats(detailedSkills);
   profile.career = { appearances: 0, wins: 0, draws: 0, losses: 0, goals: 0, assists: 0, steals: 0, cleanSheets: 0, yellowCards: 0, injuries: 0, seasonScore: 0, redCards: 0, mvps: 0, championsGoals: 0 };
   profile.league = { season: 1, matchday: 1, points: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 };
-  profile.club = starterClubName();
+  profile.club = randomStarterClub(rng);
   profile.clubState = undefined;
   profile.championsLeague = undefined;
   profile.transferOffers = [];
@@ -678,10 +708,11 @@ export function formatDetailedSkills(profileInput: PlayerProfile): string {
   const lines = DETAILED_SKILLS.map((skill) => {
     const state = profile.detailedSkills![skill];
     const label = `${key.has(skill) ? '*' : ' '} ${DETAILED_SKILL_LABELS[skill]}`.padEnd(21);
-    if (state.level >= GAME_BALANCE.skillProgression.maxLevel) return `${label}${String(state.level).padStart(2)} MAX`;
-    return `${label}${String(state.level).padStart(2)} ${progressBar(state.exp / skillLevelCost(state.level))}`;
+    const level = `Lv ${String(skillDisplayLevel(profile, skill)).padStart(2)}`;
+    if (state.level >= GAME_BALANCE.skillProgression.maxLevel) return `${label}${level} MAX`;
+    return `${label}${level} ${progressBar(state.exp / skillLevelCost(state.level))}`;
   });
-  return `\`\`\`\n${lines.join('\n')}\n\`\`\`\n\`*\` skill utama posisi · bar = progres ke +1 poin`;
+  return `\`\`\`\n${lines.join('\n')}\n\`\`\`\n\`*\` skill utama posisi · bar = EXP menuju level berikutnya`;
 }
 
 export function formatGameplayStatus(profileInput: PlayerProfile): string {
