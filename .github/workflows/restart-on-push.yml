@@ -1,0 +1,29 @@
+name: Restart LavaHosting server
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  restart-server:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Restart LavaHosting server
+        env:
+          LAVAHOSTING_API_KEY: ${{ secrets.LAVAHOSTING_API_KEY }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error \
+            --retry 3 --retry-delay 5 \
+            -X POST \
+            -H "Authorization: Bearer ${LAVAHOSTING_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Accept: Application/vnd.pterodactyl.v1+json" \
+            --data '{"signal":"restart"}' \
+            "https://gamehost.lavahosting.id/api/client/servers/97bf7e85/power"
+          echo "LavaHosting restart requested for server 97bf7e85"
