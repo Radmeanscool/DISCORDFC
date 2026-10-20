@@ -1,11 +1,11 @@
 import { GAME_BALANCE } from '../config/game-balance.js';
 import { ensureClubState, finishSeason, isClubSeasonComplete, playClubMatch, syncUserClubPlayer, userClubPlayerId } from './club-engine.js';
 import { advanceContractSeason } from './contract-engine.js';
-import { getRating, type RandomSource } from './engine.js';
+import { getRating, SeededRandom, type RandomSource } from './engine.js';
 import { formatMoney } from './format.js';
-import { clubStrengthByName, leagueLabel, leagueTier, officialClubByName, resolveClubLeagueId } from './league-engine.js';
-import { buildMatchTimeline } from './match-timeline.js';
-import { RECOVERY_PLAYERS_BY_CLUB, recoveryPositionGroup } from '../config/recovery-data.js';
+import { clubStrengthByName, leagueLabel, leagueTier, officialClubByName, resolveClubLeagueId, stableHash } from './league-engine.js';
+import { buildMatchRatings, buildMatchTimeline } from './match-timeline.js';
+import { RECOVERY_PLAYERS_BY_CLUB, recoveryPositionGroup, type RecoveryClubRecord } from '../config/recovery-data.js';
 import { generateTransferOffers } from './official-club-engine.js';
 import { personalMatchRewards, PLAYER_FORMULA_VERSION, simulatePersonalPerformance } from './player-formulas.js';
 import { applyAgeDecline } from './skill-engine.js';
@@ -66,6 +66,14 @@ export interface PlayerFixtureResult {
   seasonComplete: boolean;
 }
 
+/** RECOVERY_INFERRED crowd: the original shows an audience count; scale by the home club's tier and prestige. */
+function attendanceFor(home: RecoveryClubRecord | undefined, seed: string): number {
+  const tier = leagueTier(home?.league) ?? 1;
+  const base = tier === 1 ? 36_000 : tier === 2 ? 14_000 : 5_000;
+  const rng = new SeededRandom(stableHash(`${seed}:crowd`));
+  return Math.round((base * (0.6 + (home?.prestige ?? 0.8) * 0.5) * (0.85 + rng.next() * 0.3)) / 10) * 10;
+}
+
 export function playPlayerFixture(profileInput: PlayerProfile, now: Date, rng: RandomSource): PlayerFixtureResult {
   let profile = ensureClubState(profileInput, now, rng);
   ensureSeasonTracking(profile);
@@ -115,6 +123,8 @@ export function playPlayerFixture(profileInput: PlayerProfile, now: Date, rng: R
     season.cleanSheets += performance.cleanSheet ? 1 : 0;
     if (performance.yellowCard) discipline.yellowCards += 1;
     narrative.push(`Rating ${performance.rating.toFixed(1)} · ${performance.goals} gol · ${performance.assists} assist${performance.mvp ? ' · **MVP**' : ''}.`);
+    // RECOVERY_INFERRED fan growth: goals, MVP awards, and wins draw supporters.
+    profile.fans = (profile.fans ?? 0) + performance.goals * 5 + (performance.mvp ? 25 : 0) + (match.outcome === 'WIN' ? 3 : 0);
     if (performance.redCard) {
       discipline.suspendedMatches += 1;
       narrative.push('Kartu merah langsung: skors 1 pertandingan berikutnya.');
@@ -144,6 +154,7 @@ export function playPlayerFixture(profileInput: PlayerProfile, now: Date, rng: R
   const ownShots = match.clubIsHome ? match.stats.homeShots : match.stats.awayShots;
   const opponentShots = match.clubIsHome ? match.stats.awayShots : match.stats.homeShots;
   const opponentShotsOnTarget = match.clubIsHome ? match.stats.awayShotsOnTarget : match.stats.homeShotsOnTarget;
+  const teammates = squad.filter((player) => player.id !== userId && !player.isUserPlayer).map((player) => ({ name: player.name, position: player.position }));
   const timeline = buildMatchTimeline({
     seed: `${matchId}:${match.fixture.matchday}`,
     teamName: club.name,
@@ -154,12 +165,14 @@ export function playPlayerFixture(profileInput: PlayerProfile, now: Date, rng: R
     userName: profile.displayName,
     position: profile.position,
     personal: performance,
-    teammates: squad.filter((player) => player.id !== userId && !player.isUserPlayer).map((player) => ({ name: player.name, position: player.position })),
+    teammates,
     opponents: opponentAttackers,
     shots: ownShots,
     opponentShots,
     opponentShotsOnTarget
   });
+  const ratings = buildMatchRatings({ seed: matchId, squad: teammates.slice(0, 10), userName: profile.displayName, position: profile.position, personal: performance, timeline, outcome: match.outcome, opponentGoals });
+  const mvpName = performance.played && performance.mvp ? profile.displayName : ratings.find((item) => !item.user)?.name;
   const record: MatchRecord = {
     id: matchId,
     createdAt: now.toISOString(),
@@ -189,7 +202,10 @@ export function playPlayerFixture(profileInput: PlayerProfile, now: Date, rng: R
     home: match.clubIsHome,
     teamName: club.name,
     halftime,
-    timeline
+    timeline,
+    ratings,
+    mvpName,
+    attendance: attendanceFor(officialClubByName(match.fixture.homeClub, leagueId), matchId)
   };
   profile.lastMatch = record;
   profile.updatedAt = now.toISOString();

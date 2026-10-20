@@ -9,7 +9,7 @@ import type { RecoveryClubRecord } from '../config/recovery-data.js';
 import { GAME_BALANCE } from '../config/game-balance.js';
 import { ratingSkillsFor, skillLevelCost } from '../domain/player-formulas.js';
 import { MACRO_SKILL_WEIGHTS } from '../domain/skill-engine.js';
-import { NATIONALITIES } from '../domain/engine.js';
+import { NATIONALITIES, POSITION_DETAILS, REGULAR_TRAINING, type RegularTrainingFocus } from '../domain/engine.js';
 import { skillDisplayLevel } from '../domain/gameplay-engine.js';
 import {
   COACH_ABILITIES,
@@ -101,8 +101,9 @@ const POSITION_HINTS: Record<Position, string> = {
   FW: 'Penyerang · tembakan dan gol'
 };
 
-function positionOptions(current?: Position): StringSelectMenuOptionBuilder[] {
-  return (['GK', 'DF', 'MF', 'FW'] as const).map((position) => option(position, POSITION_LABELS[position], POSITION_HINTS[position], position === current));
+/** The ten positions from the original creation screen. */
+function positionOptions(current?: string): StringSelectMenuOptionBuilder[] {
+  return Object.entries(POSITION_DETAILS).map(([code, detail]) => option(code, detail.label, POSITION_HINTS[detail.group], code === current));
 }
 
 /** Creation: nationality (national team only) then position. The first club is always a random third-tier side. */
@@ -169,10 +170,10 @@ export function playerEventControls(userId: string, event: PlayerWeeklyEvent): R
 
 const HUB = (userId: string) => button(userId, 'menu-player', '⬅ Hub');
 
-export function playerCareerControls(userId: string, retired: boolean, canRetire: boolean, position: Position): Row[] {
+export function playerCareerControls(userId: string, retired: boolean, canRetire: boolean, position: Position, positionDetail?: string): Row[] {
   if (retired) {
     return [
-      select(userId, 'player-rebirth-select', 'Rebirth · pilih posisi generasi berikutnya', positionOptions(position)),
+      select(userId, 'player-rebirth-select', 'Rebirth · pilih posisi generasi berikutnya', positionOptions(positionDetail ?? (position === 'FW' ? 'ST' : position === 'MF' ? 'CM' : position === 'DF' ? 'CB' : 'GK'))),
       buttons(HUB(userId))
     ];
   }
@@ -222,12 +223,11 @@ export function pendingExpControls(userId: string, profile?: SkillView): Row[] {
   ];
 }
 
+/** Training tab: Regular Training with the original seven categories, plus Skill, Trick, and Personal Coach. */
 export function trainingControls(userId: string): Row[] {
-  const abilities: Array<[AbilityId, string]> = [['atk', '⚔️ Attack'], ['def', '🛡️ Defence'], ['speed', '💨 Speed'], ['power', '💥 Power'], ['strength', '🏋️ Strength'], ['technique', '🎯 Technique']];
-  // The description lists the skills that actually receive the EXP.
-  const skillsOf = (ability: AbilityId) => (Object.keys(MACRO_SKILL_WEIGHTS[ability]) as DetailedSkillId[]).map((skill) => DETAILED_SKILL_LABELS[skill]).join(', ');
+  const skillsOf = (focus: RegularTrainingFocus) => (Object.keys(REGULAR_TRAINING[focus].weights) as DetailedSkillId[]).map((skill) => DETAILED_SKILL_LABELS[skill]).join(', ');
   return [
-    select(userId, 'train-select', 'Regular Training (1x per minggu) · pilih fokus', abilities.map(([value, label]) => option(value, label, skillsOf(value)))),
+    select(userId, 'train-select', 'Regular Training (1x per minggu) · pilih kategori', (Object.keys(REGULAR_TRAINING) as RegularTrainingFocus[]).map((focus) => option(focus, REGULAR_TRAINING[focus].label, skillsOf(focus)))),
     buttons(
       button(userId, 'detailed-train', 'Skill Training'),
       button(userId, 'player-tricks', 'Trick Training'),

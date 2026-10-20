@@ -187,10 +187,10 @@ test('club transfer flow exposes owner-bound club selection and confirmation', (
   assert.equal(closed.find((item) => 'custom_id' in item && item.custom_id === 'frs:transfer-user:player-clubs')?.disabled, true);
 });
 
-test('training component exposes all six abilities', () => {
+test('Regular Training offers the seven categories of the original', () => {
   const select = trainingControls('user-2')[0].toJSON().components[0];
   assert.equal(select.custom_id, 'frs:user-2:train-select');
-  assert.deepEqual(select.options?.map((option) => option.value), ['atk', 'def', 'speed', 'power', 'strength', 'technique']);
+  assert.deepEqual(select.options?.map((option) => option.label), ['Shoot', 'Dribbling', 'Speed', 'Stamina', 'Pass', 'Defense', 'Physical']);
 });
 
 test('detailed training component exposes all twelve detailed skills', () => {

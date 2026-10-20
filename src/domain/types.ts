@@ -8,7 +8,7 @@ export type ListingStatus = 'OPEN' | 'SOLD' | 'CANCELLED';
 export type CareerMode = 'PLAYER' | 'COACH';
 export type CareerStatus = 'ACTIVE' | 'RETIRED';
 export type PlayerWeekStage = 'READY' | 'MATCH_READY' | 'EXP_PENDING' | 'EVENT_PENDING' | 'SEASON_BREAK';
-export type PlayerEventType = 'INTERVIEW' | 'SPONSOR_OFFER' | 'MEDICAL_INCIDENT' | 'LIFESTYLE';
+export type PlayerEventType = 'INTERVIEW' | 'SPONSOR_OFFER' | 'MEDICAL_INCIDENT' | 'LIFESTYLE' | 'FAN_WINDFALL';
 export type CoachStatus = 'EMPLOYED' | 'UNEMPLOYED' | 'RETIRED';
 export type CoachAbilityId = 'formation' | 'tactics' | 'stateAdjustment' | 'trainingLevel' | 'lockerRoom' | 'charisma';
 export type CoachTargetType = 'PROMOTION' | 'CHAMPIONSHIP' | 'AVOID_RELEGATION' | 'QCL' | 'TOP_HALF';
@@ -85,6 +85,7 @@ export interface PlayerEventChoice {
   energyDelta?: number;
   hpDelta?: number;
   injuryWeeks?: number;
+  fansDelta?: number;
   sponsor?: PlayerSponsorContract;
 }
 export interface PlayerWeeklyEvent {
@@ -329,6 +330,9 @@ export interface MatchTimelineEvent {
   text: string;
   /** The user's athlete is the actor. */
   user?: boolean;
+  /** Scorer (or acting player) and assist provider, for ratings and recaps. */
+  actor?: string;
+  assist?: string;
 }
 
 export interface MatchRecord {
@@ -368,6 +372,12 @@ export interface MatchRecord {
   halftime?: { team: number; opponent: number };
   /** Presentation timeline consistent with the score and the athlete's personal output. */
   timeline?: MatchTimelineEvent[];
+  /** Game-calendar date of the match (ISO). */
+  date?: string;
+  attendance?: number;
+  mvpName?: string;
+  /** Match ratings of the athlete's side, highest first. */
+  ratings?: Array<{ name: string; position: Position; rating: number; user?: boolean }>;
 }
 
 export interface LeagueState {
@@ -887,6 +897,16 @@ export interface PlayerProfile {
   skillBase?: Partial<Record<DetailedSkillId, number>>;
   /** Birth country picked at creation; it decides the national team for international tournaments, not the club. */
   nationality?: string;
+  /** Detailed position chosen at creation (ST, CB, CDM…); `position` keeps the GK/DF/MF/FW group. */
+  positionDetail?: string;
+  /** Calendar year in which season 1 of this generation started (dates shown in the game calendar). */
+  calendarStartYear?: number;
+  /** `${season}-${window}` of the last window that already produced in-season offers. */
+  transferWindowKey?: string;
+  /** Fans, as shown on the original hub; raised by events, goals, and MVP awards (RECOVERY_INFERRED). */
+  fans?: number;
+  /** Premium currency shown on the original hub; earned only through top-up (not yet enabled). */
+  diamonds?: number;
   detailedSkills?: DetailedSkills;
   unassignedMatchExp?: number;
   injury?: InjuryState;

@@ -169,3 +169,13 @@ export function makeFormulaObservation(profile: Pick<PlayerProfile, 'position' |
     formulaVersion: PLAYER_FORMULA_VERSION
   };
 }
+
+/**
+ * RECOVERY_INFERRED: the original hub shows a player Value. It grows steeply with
+ * rating, carries a premium for youth, and falls after 28.
+ */
+export function playerValue(rating: number, age: number): number {
+  const youth = age <= 21 ? 1 + (22 - age) * 0.12 : 1;
+  const decline = age > 28 ? Math.pow(0.85, age - 28) : 1;
+  return Math.round((10_000 * Math.pow(1.17, rating - 50) * youth * decline) / 1_000) * 1_000;
+}

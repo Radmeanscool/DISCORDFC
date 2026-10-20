@@ -20,7 +20,7 @@ import { log } from '../observability/logger.js';
 import { ratingSkillsFor } from '../domain/player-formulas.js';
 import { PLAYER_OVERLAY_SUMMARY } from '../config/recovery-data.js';
 import { BUILD_LABEL } from '../config/build-info.js';
-import { NATIONALITIES } from '../domain/engine.js';
+import { isRegularTrainingFocus, NATIONALITIES, REGULAR_TRAINING, resolvePosition, trainRegular } from '../domain/engine.js';
 import { leagueLabel } from '../domain/league-engine.js';
 import { resolveModeCommand } from './commands.js';
 import {
@@ -192,12 +192,15 @@ function creationPanel(userId: string, nationality = 'IDN'): Panel {
   };
 }
 
-async function createPlayer(ctx: Ctx, position: Position, nationality?: string): Promise<Panel> {
-  if (!['GK', 'DF', 'MF', 'FW'].includes(position)) throw new Error('Posisi Player tidak valid.');
+async function createPlayer(ctx: Ctx, positionCode: string, nationality?: string): Promise<Panel> {
+  const resolved = resolvePosition(positionCode);
+  if (!resolved) throw new Error('Posisi Player tidak valid.');
+  const position = resolved.group;
   const existing = await ctx.store.get(ctx.userId);
   if (existing) return playerHomeAction(ctx, 'Profil sudah ada.');
   const known = NATIONALITIES.some((item) => item.code === nationality) ? nationality : undefined;
   const profile = createPlayerCareer(ctx.userId, ctx.displayName, position, ctx.now, undefined, known);
+  if (resolved.detail) profile.positionDetail = resolved.detail;
   await ctx.store.save(profile);
   const signed = info('✍️ Signed successfully!', `**${profile.club}** (${leagueLabel(profile.clubState?.leagueId)}) mengontrak **${profile.displayName}** selama ${profile.contract?.seasons ?? 2} musim · gaji ${formatMoney(profile.contract?.salary ?? 0)}/minggu.\nBuktikan dirimu di divisi bawah: tawaran klub lebih besar datang dari performa.`);
   const home = playerHome(profile, ctx.userId);
@@ -295,10 +298,18 @@ async function trainingPanel(ctx: Ctx, content?: string): Promise<Panel> {
   };
 }
 
-async function regularTraining(ctx: Ctx, ability: AbilityId): Promise<Panel> {
+async function regularTraining(ctx: Ctx, choice: string): Promise<Panel> {
+  if (isRegularTrainingFocus(choice)) {
+    const result = trainRegular(await requireProfile(ctx), choice, ctx.now);
+    await ctx.store.save(result.profile);
+    const gains = (Object.entries(result.applied) as Array<[DetailedSkillId, number]>).filter(([, exp]) => exp > 0).map(([skill, exp]) => `${DETAILED_SKILL_LABELS[skill]} +${exp}`).join(', ');
+    return playerHome(result.profile, ctx.userId, `Regular Training · ${REGULAR_TRAINING[choice].label}: ${gains} EXP.`);
+  }
+  // Panels sent before the original categories still carry macro ability ids.
+  const ability = choice as AbilityId;
   const result = trainPlayer(await requireProfile(ctx), ability, ctx.now);
   await ctx.store.save(result.profile);
-  return playerHome(result.profile, ctx.userId, `Latihan ${ABILITY_LABELS[ability] ?? ability}: +${result.expGained} EXP ke skill terkait (${result.statBefore} → ${result.statAfter}).`);
+  return playerHome(result.profile, ctx.userId, `Latihan ${ABILITY_LABELS[ability] ?? ability}: +${result.expGained} EXP ke skill terkait.`);
 }
 
 async function detailedTraining(ctx: Ctx, skill: DetailedSkillId): Promise<Panel> {
@@ -409,7 +420,7 @@ async function honorsPanel(ctx: Ctx, content?: string): Promise<Panel> {
 
 async function careerPanel(ctx: Ctx, content?: string): Promise<Panel> {
   const profile = ensureGameplayState(await requireProfile(ctx), ctx.now);
-  return { content, embeds: [playerCareerEmbed(profile)], components: playerCareerControls(ctx.userId, profile.careerStatus === 'RETIRED', canRetire(profile), profile.position) };
+  return { content, embeds: [playerCareerEmbed(profile)], components: playerCareerControls(ctx.userId, profile.careerStatus === 'RETIRED', canRetire(profile), profile.position, profile.positionDetail) };
 }
 
 async function championsStatus(ctx: Ctx, mode: ChampionsLeagueMode): Promise<Panel> {
@@ -796,7 +807,7 @@ async function routeComponent(ctx: Ctx, action: string): Promise<Panel> {
     if (!Number.isInteger(round) || !Number.isInteger(rosterVersion)) throw new Error('Komponen lineup tidak valid. Buka ulang Versus Home.');
     return lineupStep(ctx, step, round, rosterVersion);
   }
-  if (action.startsWith('player-create-select:')) return createPlayer(ctx, value(ctx) as Position, action.split(':')[1]);
+  if (action.startsWith('player-create-select:')) return createPlayer(ctx, value(ctx), action.split(':')[1]);
   if (action.startsWith('player-club-confirm:')) {
     const clubId = Number(action.split(':')[1]);
     const updated = joinOfficialClub(await requireProfile(ctx), clubId, ctx.now);
@@ -840,7 +851,7 @@ async function routeComponent(ctx: Ctx, action: string): Promise<Panel> {
 
     // Player Mode
     case 'player-create-select':
-      return createPlayer(ctx, value(ctx) as Position);
+      return createPlayer(ctx, value(ctx));
     case 'player-country-select':
       return creationPanel(ctx.userId, value(ctx));
     // `match` and `player-event` are kept for panels sent before the single weekly button.
@@ -875,7 +886,7 @@ async function routeComponent(ctx: Ctx, action: string): Promise<Panel> {
     case 'train':
       return trainingPanel(ctx);
     case 'train-select':
-      return regularTraining(ctx, value(ctx) as AbilityId);
+      return regularTraining(ctx, value(ctx));
     case 'detailed-train': {
       const profile = ensureGameplayState(await requireProfile(ctx), ctx.now);
       return { embeds: [info('🎯 Latihan skill khusus', `Pilih satu skill. Latihannya selesai di minggu berikutnya dan EXP-nya langsung masuk ke skill itu.\n\n${formatDetailedSkills(profile)}`)], components: detailedTrainingControls(ctx.userId, profile) };
@@ -962,9 +973,10 @@ async function routeComponent(ctx: Ctx, action: string): Promise<Panel> {
     case 'player-retire-confirm':
       return gameplayAction(ctx, (profile) => retirePlayer(profile, ctx.now), careerPanel);
     case 'player-rebirth-select': {
-      const position = value(ctx) as Position;
-      if (!['GK', 'DF', 'MF', 'FW'].includes(position)) throw new Error('Posisi rebirth tidak valid.');
-      const result = rebirthPlayer(await requireProfile(ctx), ctx.now, position);
+      const resolved = resolvePosition(value(ctx));
+      if (!resolved) throw new Error('Posisi rebirth tidak valid.');
+      const result = rebirthPlayer(await requireProfile(ctx), ctx.now, resolved.group);
+      result.profile.positionDetail = resolved.detail;
       await ctx.store.save(result.profile);
       return playerHome(result.profile, ctx.userId, result.message);
     }

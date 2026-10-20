@@ -1,11 +1,12 @@
 import { GAME_BALANCE } from '../config/game-balance.js';
 import { RECOVERY_CLUBS, type RecoveryClubRecord } from '../config/recovery-data.js';
-import { ensureClubState, isClubSeasonComplete } from './club-engine.js';
+import { ensureClubState, isClubSeasonComplete, playClubMatch, userClubPlayerId } from './club-engine.js';
 import { signContract, weeklySalaryFor } from './contract-engine.js';
-import type { RandomSource } from './engine.js';
+import { MathRandomSource, type RandomSource } from './engine.js';
 import { clubStrengthByName, isDomesticLeague, officialClubStrength } from './league-engine.js';
 import { calculatePlayerRating } from './player-formulas.js';
 import type { PlayerProfile, PlayerTransferOffer } from './types.js';
+import { playedMatchdays, transferWindowFor } from './season-calendar.js';
 
 export function listOfficialClubs(league?: number): typeof RECOVERY_CLUBS {
   return RECOVERY_CLUBS.filter((club) => league === undefined || club.league === league);
@@ -25,12 +26,13 @@ export function officialClubMinimumRating(officialClubId: number): number {
 }
 
 /** Transfers happen in pre-season (no fixture played yet) or during the season break. */
+/** Season break, pre-season, the summer window, and the January window (season-calendar). */
 export function transferWindowOpen(profile: PlayerProfile): boolean {
   const club = profile.clubState;
   if (!club) return true;
   if (profile.weekStage === 'SEASON_BREAK') return true;
   if (isClubSeasonComplete(club)) return true;
-  return club.fixtures.every((fixture) => !fixture.played);
+  return transferWindowFor(club) !== undefined;
 }
 
 export function listEligibleClubs(profile: PlayerProfile, limit = 25): RecoveryClubRecord[] {
@@ -42,13 +44,19 @@ export function listEligibleClubs(profile: PlayerProfile, limit = 25): RecoveryC
     .slice(0, limit);
 }
 
-function moveToClub(profileInput: PlayerProfile, club: RecoveryClubRecord, now: Date, salary?: number, seasons?: number): PlayerProfile {
+function moveToClub(profileInput: PlayerProfile, club: RecoveryClubRecord, now: Date, salary?: number, seasons?: number, rng: RandomSource = new MathRandomSource()): PlayerProfile {
   const profile = structuredClone(profileInput);
+  // A mid-season move joins the new league at the same round (the original's September
+  // move to Sandhausen continues at matchday 6), so earlier rounds are simulated without the athlete.
+  const midSeason = profileInput.clubState && profileInput.weekStage !== 'SEASON_BREAK' && !isClubSeasonComplete(profileInput.clubState) ? playedMatchdays(profileInput.clubState) : 0;
   profile.club = club.nameEn;
   profile.clubState = undefined;
   profile.league = { ...profile.league, matchday: 1, points: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 };
   profile.championsLeague = undefined;
-  let updated = ensureClubState(profile, now);
+  let updated = ensureClubState(profile, now, rng);
+  for (let round = 0; round < midSeason && !isClubSeasonComplete(updated.clubState); round += 1) {
+    updated = playClubMatch(updated, now, rng, 'clubState', { excludePlayerIds: [userClubPlayerId(updated)] }).profile;
+  }
   updated = signContract(updated, now, seasons ?? GAME_BALANCE.contract.defaultSeasons, 'TRANSFER');
   if (salary !== undefined && updated.contract) updated.contract.salary = salary;
   updated.seasonWeek = 1;
@@ -60,7 +68,7 @@ function assertTransferAllowed(profile: PlayerProfile, club: RecoveryClubRecord)
   if (profile.careerStatus === 'RETIRED') throw new Error('Karier ini sudah pensiun.');
   if ((profile.clubState && profile.clubState.officialId === club.id) || profile.club === club.nameEn) throw new Error('Pemain sudah berada di klub tersebut.');
   if (!isDomesticLeague(club.league)) throw new Error('Klub ini hanya tampil di kompetisi Eropa dan tidak membuka kontrak liga domestik.');
-  if (!transferWindowOpen(profile)) throw new Error('Transfer window tutup. Pindah klub hanya bisa saat pra-musim atau season break.');
+  if (!transferWindowOpen(profile)) throw new Error('Transfer window tutup. Pindah klub hanya di awal musim (Agustus), Januari, atau saat season break.');
   if (['EVENT_PENDING', 'EXP_PENDING'].includes(profile.weekStage ?? 'READY')) throw new Error('Selesaikan event atau alokasi EXP terlebih dahulu.');
 }
 
@@ -83,7 +91,7 @@ export function joinOfficialClub(profileInput: PlayerProfile, officialClubId: nu
 }
 
 /** Season-end interest from clubs at or above the current level, based on rating and form. */
-export function generateTransferOffers(profileInput: PlayerProfile, rng: RandomSource, averageRating: number, appearanceShare: number): PlayerTransferOffer[] {
+export function generateTransferOffers(profileInput: PlayerProfile, rng: RandomSource, averageRating: number, appearanceShare: number, window = 'END'): PlayerTransferOffer[] {
   const rating = calculatePlayerRating(profileInput);
   const currentStrength = clubStrengthByName(profileInput.club, profileInput.clubState?.leagueId);
   const inForm = averageRating >= 6.6 && appearanceShare >= 0.4;
@@ -94,7 +102,7 @@ export function generateTransferOffers(profileInput: PlayerProfile, rng: RandomS
   while (picks.length && offers.length < GAME_BALANCE.transfer.offersPerSeason) {
     const [club] = picks.splice(Math.floor(rng.next() * picks.length), 1);
     offers.push({
-      id: `offer-${profileInput.league.season}-${club.id}`,
+      id: `offer-${profileInput.league.season}-${window.toLowerCase()}-${club.id}`,
       clubId: club.id,
       clubName: club.nameEn,
       leagueId: club.league,
@@ -107,7 +115,7 @@ export function generateTransferOffers(profileInput: PlayerProfile, rng: RandomS
   return offers;
 }
 
-export function acceptTransferOffer(profileInput: PlayerProfile, offerId: string, now = new Date()): PlayerProfile {
+export function acceptTransferOffer(profileInput: PlayerProfile, offerId: string, now = new Date(), rng: RandomSource = new MathRandomSource()): PlayerProfile {
   const offer = profileInput.transferOffers?.find((item) => item.id === offerId && item.status === 'OPEN');
   if (!offer) throw new Error('Tawaran transfer tidak ditemukan atau sudah ditutup.');
   const club = RECOVERY_CLUBS.find((item) => item.id === offer.clubId);
@@ -115,7 +123,7 @@ export function acceptTransferOffer(profileInput: PlayerProfile, offerId: string
   assertTransferAllowed(profileInput, club);
   const profile = structuredClone(profileInput);
   profile.transferOffers = (profile.transferOffers ?? []).map((item) => item.id === offerId ? { ...item, status: 'ACCEPTED' as const } : item.status === 'OPEN' ? { ...item, status: 'EXPIRED' as const } : item);
-  return moveToClub(profile, club, now, offer.weeklySalary, offer.seasons);
+  return moveToClub(profile, club, now, offer.weeklySalary, offer.seasons, rng);
 }
 
 export function declineTransferOffer(profileInput: PlayerProfile, offerId: string, now = new Date()): PlayerProfile {

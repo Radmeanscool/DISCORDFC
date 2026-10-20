@@ -91,16 +91,22 @@ export function buildMatchTimeline(input: TimelineInput): MatchTimelineEvent[] {
   const userGoalSlots = new Set(roles.slice(0, userGoals));
   const userAssistSlots = new Set(roles.slice(userGoals, userGoals + userAssists));
   teamMinutes.forEach((minute, index) => {
+    const userName = escapeMarkdown(input.userName);
     if (userGoalSlots.has(index)) {
-      const assist = rng.next() < 0.55 && input.teammates.length ? ` Assist: ${teammate(input.teammates, rng)}.` : '';
-      events.push({ minute, side: 'TEAM', kind: 'GOAL', user: true, text: `⚽ GOL! ${user} mencetak gol untuk ${team}!${assist}` });
+      const helper = rng.next() < 0.55 && input.teammates.length ? teammate(input.teammates, rng) : undefined;
+      events.push({ minute, side: 'TEAM', kind: 'GOAL', user: true, actor: userName, assist: helper, text: `⚽ GOL! ${user} mencetak gol untuk ${team}!${helper ? ` Assist: ${helper}.` : ''}` });
     } else if (userAssistSlots.has(index)) {
-      events.push({ minute, side: 'TEAM', kind: 'GOAL', user: true, text: `⚽ GOL! ${teammate(input.teammates, rng)} menuntaskan umpan ${user}. Assist untukmu!` });
+      const scorer = teammate(input.teammates, rng);
+      events.push({ minute, side: 'TEAM', kind: 'GOAL', user: true, actor: scorer, assist: userName, text: `⚽ GOL! ${scorer} menuntaskan umpan ${user}. Assist untukmu!` });
     } else {
-      events.push({ minute, side: 'TEAM', kind: 'GOAL', text: `⚽ GOL! ${teammate(input.teammates, rng)} membobol gawang ${opponent}.` });
+      const scorer = teammate(input.teammates, rng);
+      events.push({ minute, side: 'TEAM', kind: 'GOAL', actor: scorer, text: `⚽ GOL! ${scorer} membobol gawang ${opponent}.` });
     }
   });
-  for (const minute of opponentMinutes) events.push({ minute, side: 'OPPONENT', kind: 'GOAL', text: `⚽ Gol untuk ${opponent}: ${opponentPlayer()}.` });
+  for (const minute of opponentMinutes) {
+    const scorer = opponentPlayer();
+    events.push({ minute, side: 'OPPONENT', kind: 'GOAL', actor: scorer, text: `⚽ Gol untuk ${opponent}: ${scorer}.` });
+  }
 
   // A sending-off ends the athlete's match, so it comes after their goals and assists.
   const lastUserMinute = Math.max(0, ...events.filter((event) => event.user).map((event) => event.minute));
@@ -149,4 +155,42 @@ export function withInjuryEvent(timeline: MatchTimelineEvent[], userName: string
   const minute = clamp(lastUserMinute + 1 + Math.floor(rng.next() * 10), 1, 90);
   const injury: MatchTimelineEvent = { minute, side: 'TEAM', kind: 'INJURY', user: true, text: `🚑 **${escapeMarkdown(userName)}** cedera dan ditarik keluar.` };
   return [...timeline.filter((event) => event.minute <= minute), injury, ...timeline.filter((event) => event.minute > minute)];
+}
+
+export interface RatingInput {
+  seed: string;
+  squad: Array<{ name: string; position: Position }>;
+  userName: string;
+  position: Position;
+  personal: PersonalMatchPerformance;
+  timeline: MatchTimelineEvent[];
+  outcome: 'WIN' | 'DRAW' | 'LOSS';
+  opponentGoals: number;
+}
+
+/**
+ * Match ratings for the athlete's side (the original shows a rating per player).
+ * Teammates get 6.0–7.0 plus goals, assists, the result, and clean sheets; the
+ * athlete keeps the engine's own rating, and the MVP flag decides who rates highest.
+ */
+export function buildMatchRatings(input: RatingInput): Array<{ name: string; position: Position; rating: number; user?: boolean }> {
+  const rng = new SeededRandom(stableHash(`${input.seed}:ratings`));
+  const goals = input.timeline.filter((event) => event.kind === 'GOAL' && event.side === 'TEAM');
+  const result = input.outcome === 'WIN' ? 0.3 : input.outcome === 'LOSS' ? -0.3 : 0;
+  const ratings: Array<{ name: string; position: Position; rating: number; user?: boolean }> = input.squad.map((player) => {
+    const name = escapeMarkdown(player.name);
+    const scored = goals.filter((event) => event.actor === name).length;
+    const assisted = goals.filter((event) => event.assist === name).length;
+    const cleanSheet = input.opponentGoals === 0 && (player.position === 'GK' || player.position === 'DF') ? 0.4 : 0;
+    const keeper = player.position === 'GK' ? -0.2 * input.opponentGoals : 0;
+    return { name, position: player.position, rating: clamp(6 + rng.next() + result + scored * 0.8 + assisted * 0.4 + cleanSheet + keeper, 4.5, 9.6) };
+  });
+  if (input.personal.played) {
+    const userRating = input.personal.rating;
+    const best = Math.max(0, ...ratings.map((item) => item.rating));
+    if (input.personal.mvp) for (const item of ratings) item.rating = Math.min(item.rating, userRating - 0.1);
+    else if (best <= userRating && ratings.length) ratings.reduce((top, item) => item.rating > top.rating ? item : top, ratings[0]).rating = Math.min(10, userRating + 0.1);
+    ratings.push({ name: escapeMarkdown(input.userName), position: input.position, rating: userRating, user: true });
+  }
+  return ratings.map((item) => ({ ...item, rating: Math.round(item.rating * 10) / 10 })).sort((a, b) => b.rating - a.rating);
 }

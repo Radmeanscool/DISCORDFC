@@ -6,13 +6,14 @@ import { formatContract, getContractStatus } from '../domain/contract-engine.js'
 import { formatMoney } from '../domain/format.js';
 import { canRetire, formatDetailedSkills, skillDisplayLevel, VOLUNTARY_RETIREMENT_AGE } from '../domain/gameplay-engine.js';
 import { leagueLabel, resolveClubLeagueId, sortStandings } from '../domain/league-engine.js';
-import { ratingSkillsFor } from '../domain/player-formulas.js';
+import { playerValue, ratingSkillsFor } from '../domain/player-formulas.js';
 import { transferWindowOpen } from '../domain/official-club-engine.js';
 import { dmEnabled } from '../domain/notification-engine.js';
 import { abilityScore, formatVersusBattle, getVersusStandings, versusLeagueCode, versusTotalRounds } from '../domain/versus-engine.js';
 import { availableVersusCoin, listingAbilityScore, minimumVersusBid } from '../domain/versus-economy.js';
 import { GAME_BALANCE } from '../config/game-balance.js';
 import { BUILD_LABEL } from '../config/build-info.js';
+import { formatGameDate, nextMatchDate, seasonLabel, seasonYear } from '../domain/season-calendar.js';
 import {
   ABILITY_LABELS,
   COACH_ABILITIES,
@@ -92,6 +93,11 @@ function gauge(value: number, max: number, width = 8): string {
   return `${'▰'.repeat(filled)}${'▱'.repeat(width - filled)}`;
 }
 
+function calendarLine(profile: PlayerProfile): string {
+  const next = nextMatchDate(profile);
+  return `${next ? `${formatGameDate(next)} · ` : ''}Musim ${seasonLabel(seasonYear(profile))} · Minggu ${profile.careerWeek ?? 1}`;
+}
+
 function nextFixtureLine(profile: PlayerProfile): string {
   const club = profile.clubState;
   const fixture = club ? [...club.fixtures].sort((a, b) => a.matchday - b.matchday).find((item) => !item.played) : undefined;
@@ -123,11 +129,27 @@ function statusAlerts(profile: PlayerProfile): string[] {
   return alerts;
 }
 
+function compactMoney(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1).replace('.', ',')} jt`;
+  if (value >= 1_000) return `${Math.round(value / 1_000)} rb`;
+  return String(value);
+}
+
+/**
+ * The original hexagon: OFF, DEF, SPD, STA, TEC, PHY. Five map onto the derived
+ * macro stats; STA (stamina) is RECOVERY_INFERRED from endurance, willpower, and teamwork.
+ */
+function radar(profile: PlayerProfile): Array<[string, number]> {
+  const skill = (id: keyof NonNullable<PlayerProfile['detailedSkills']>) => profile.detailedSkills?.[id]?.level ?? 1;
+  const stamina = Math.round((skill('endurance') * 2 + skill('willpower') + skill('teamwork')) / 4);
+  return [['OFF', profile.stats.atk], ['DEF', profile.stats.def], ['SPD', profile.stats.speed], ['STA', stamina], ['TEC', profile.stats.technique], ['PHY', profile.stats.strength]];
+}
+
 /** Full profile: everything about the athlete, opened from the Player menu. */
 export function profileEmbed(profile: PlayerProfile): EmbedBuilder {
-  const abilities = (Object.keys(profile.stats) as AbilityId[]).map((id) => `${ABILITY_LABELS[id]} **${profile.stats[id]}**`).join(' · ');
+  const abilities = radar(profile).map(([label, value]) => `${label} **${value}**`).join(' · ');
   const alerts = statusAlerts(profile);
-  return embed(`👤 ${profile.displayName} · ${POSITION_LABELS[profile.position]}`, `${clubLine(profile)}\n⭐ Rating **${getRating(profile)}** · Usia **${profile.age}** · Tahun karier **${profile.careerYear ?? 1}** · Rebirth **${profile.rebirthCount ?? 0}**${profile.careerStatus === 'RETIRED' ? '\n**Karier sudah pensiun.** Buka Rebirth untuk generasi berikutnya.' : ''}`)
+  return embed(`👤 ${profile.displayName} · ${profile.positionDetail ?? POSITION_LABELS[profile.position]}`, `${clubLine(profile)}\n⭐ Rating **${getRating(profile)}** · Usia **${profile.age}** · Tahun karier **${profile.careerYear ?? 1}** · Rebirth **${profile.rebirthCount ?? 0}**${profile.careerStatus === 'RETIRED' ? '\n**Karier sudah pensiun.** Buka Rebirth untuk generasi berikutnya.' : ''}`)
     .addFields(
       field('❤️ Kondisi', `HP ${gauge(profile.hp, profile.maxHp)} ${profile.hp}/${profile.maxHp}\nEnergi ${gauge(profile.energy, profile.maxEnergy)} ${profile.energy}/${profile.maxEnergy}\n💰 ${formatMoney(profile.money)} · Charm ${profile.charm ?? 0}`, true),
       field(`📊 Musim ${profile.league.season}`, `${seasonLine(profile)}\nKlub ${profile.league.wins}-${profile.league.draws}-${profile.league.losses}`, true),
@@ -152,10 +174,12 @@ export function playerWeeklyEmbed(profile: PlayerProfile): EmbedBuilder {
   const stage = profile.weekStage ?? 'READY';
   const key = ratingSkillsFor(profile.position).slice(0, 4).map((skill) => `${DETAILED_SKILL_LABELS[skill]} **Lv ${skillDisplayLevel(profile, skill)}**`).join(' · ');
   const alerts = statusAlerts(profile);
-  const item = embed(`⚽ ${profile.displayName} · ${POSITION_LABELS[profile.position]}`, [
+  const item = embed(`⚽ ${profile.displayName} · ${profile.positionDetail ?? POSITION_LABELS[profile.position]}`, [
     clubLine(profile),
-    `📅 Musim ${profile.league.season} · Minggu ${profile.careerWeek ?? 1} · Usia ${profile.age}${profile.nationality ? ` · ${NATIONALITIES.find((item) => item.code === profile.nationality)?.label ?? profile.nationality}` : ''}`,
-    `⭐ Rating **${getRating(profile)}** · 💰 ${formatMoney(profile.money)}`,
+    `📅 ${calendarLine(profile)}`,
+    `🎂 Usia ${profile.age}${profile.nationality ? ` · ${NATIONALITIES.find((item) => item.code === profile.nationality)?.label ?? profile.nationality}` : ''}`,
+    `⭐ Rating **${getRating(profile)}** · 💎 Value ${compactMoney(playerValue(getRating(profile), profile.age))}`,
+    `💰 ${formatMoney(profile.money)} · 💠 ${profile.diamonds ?? 0} Diamonds · 👥 ${formatMoney(profile.fans ?? 0)} Fans`,
     '',
     profile.careerStatus === 'RETIRED' ? 'Karier sudah pensiun. Tekan **Rebirth** untuk generasi baru.' : `➡️ ${NEXT_STEP[stage]}`
   ].join('\n'))
@@ -188,6 +212,25 @@ function scoreboard(record: MatchRecord, score: { team: number; opponent: number
   return record.home === false ? `**${record.opponent}  ${score.opponent} – ${score.team}  ${team}**` : `**${team}  ${score.team} – ${score.opponent}  ${record.opponent}**`;
 }
 
+/** Round table as in the original's post-match screen: the top three and the rows around the athlete's club. */
+function roundTable(profile: PlayerProfile): string | undefined {
+  const club = profile.clubState;
+  if (!club) return undefined;
+  const table = sortStandings(club.standings);
+  const own = table.findIndex((standing) => standing.clubId === club.id);
+  const rows = new Set([0, 1, 2, own - 1, own, own + 1].filter((index) => index >= 0 && index < table.length));
+  let previous = -1;
+  const lines: string[] = [];
+  for (const index of [...rows].sort((a, b) => a - b)) {
+    if (previous >= 0 && index > previous + 1) lines.push('…');
+    const standing = table[index];
+    const name = standing.clubId === club.id ? `**${standing.clubName}**` : standing.clubName;
+    lines.push(`\`${String(index + 1).padStart(2)}\` ${name} · ${standing.points} pts`);
+    previous = index;
+  }
+  return lines.join('\n');
+}
+
 /** Minute checkpoints shown while the match "plays". */
 export const LIVE_CHECKPOINTS = [0, 15, 30, 45, 60, 75, 90] as const;
 
@@ -204,7 +247,8 @@ export function liveMatchEmbed(record: MatchRecord, minute: number): EmbedBuilde
     ...(feed.length ? feed : ['Kedua tim saling menjajaki…']),
     ...(personal && !personal.played ? ['', `Kamu tidak bermain (${personal.absence === 'INJURED' ? 'cedera' : personal.absence === 'SUSPENDED' ? 'skors' : 'kondisi fisik'}) dan menonton dari tribun.`] : [])
   ];
-  return embed(`🔴 LIVE · Matchday ${record.matchday ?? '-'}`, lines.join('\n'));
+  if (minute === 0 && record.attendance) lines.splice(2, 0, `👥 ${record.attendance.toLocaleString('id-ID')} penonton`);
+  return embed(`🔴 LIVE · Matchday ${record.matchday ?? '-'}${record.date ? ` · ${formatGameDate(new Date(record.date))}` : ''}`, lines.join('\n'));
 }
 
 /** Match recap shown after the live frames, with rewards and what happened this week. */
@@ -221,18 +265,28 @@ export function matchResultEmbed(result: WeekResult, weeklyNotes: string[] = [])
   const afterMatch = result.narrative.filter((line) => !line.startsWith('Match Ready') && !/^\S.* \d+-\d+ .* · matchday \d+\.$/.test(line) && !line.startsWith('Rating '));
   const notes = [...weeklyNotes.filter((line) => !line.startsWith('Weekly Update') && !line.startsWith('Event mingguan')), ...afterMatch];
   const halftime = match.halftime ? ` (HT ${match.home === false ? `${match.halftime.opponent}–${match.halftime.team}` : `${match.halftime.team}–${match.halftime.opponent}`})` : '';
-  const item = embed(`${title} · Matchday ${match.matchday ?? '-'}`, [
+  const crowd = [match.attendance ? `👥 ${match.attendance.toLocaleString('id-ID')} penonton` : '', match.mvpName ? `🏅 MVP: **${match.mvpName}**` : ''].filter(Boolean).join(' · ');
+  const item = embed(`${title} · Matchday ${match.matchday ?? '-'}${match.date ? ` · ${formatGameDate(new Date(match.date))}` : ''}`, [
     `${scoreboard(match, { team: match.playerGoals, opponent: match.opponentGoals })}${halftime}`,
     '',
     ...(goals.length ? goals : ['Tanpa gol.']),
     '',
-    `**Performa kamu:** ${performance}`
+    `**Performa kamu:** ${performance}`,
+    ...(crowd ? ['', crowd] : [])
   ].join('\n'))
     .setColor(match.outcome === 'LOSS' || result.retired ? WARNING_COLOR : BRAND_COLOR)
     .addFields(
       field('📊 Statistik', match.stats ? `Penguasaan ${match.stats.possession}%–${match.stats.opponentPossession}%\nTembakan ${match.stats.shots}–${match.stats.opponentShots} (on target ${match.stats.shotsOnTarget}–${match.stats.opponentShotsOnTarget})` : '-', true),
       field('🎁 Hadiah', `💰 +${formatMoney(match.rewards.money)}\n📈 +${match.rewards.exp} EXP${result.expAwaitingAssignment ? ` · **${result.expAwaitingAssignment}** siap dialokasikan` : ''}`, true)
     );
+  if (match.ratings?.length) {
+    const top = match.ratings.slice(0, 5);
+    const own = match.ratings.find((item) => item.user);
+    const rows = [...top, ...(own && !top.includes(own) ? [own] : [])].map((item) => `\`${item.rating.toFixed(1)}\` ${item.user ? `**${item.name}**` : item.name} · ${item.position}`);
+    item.addFields(field('⭐ Rating pemain', rows.join('\n'), true));
+  }
+  const table = roundTable(result.profile);
+  if (table) item.addFields(field(`📊 Klasemen setelah MD ${match.matchday ?? '-'}`, table, true));
   if (notes.length) item.addFields(field('Minggu ini', notes.map((line) => `• ${line}`).join('\n')));
   if (result.award) item.addFields(field('🌍 World Footballer', `Pemenang: **${result.award.winner}** · skor kamu ${result.award.userScore}${result.award.userWon ? ' · **KAMU MENANG!**' : ''}`));
   return item;

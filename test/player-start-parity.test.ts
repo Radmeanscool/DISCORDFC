@@ -44,3 +44,55 @@ test('saves from before skill levels count levels from the position preset', () 
   assert.equal(skillDisplayLevel(migrated, 'shots'), 12);
   assert.equal(skillDisplayLevel(migrated, 'header'), 1);
 });
+
+test('a summer-window move joins the new league at the same round, and windows follow the calendar', async () => {
+  const { joinOfficialClub, listEligibleClubs, officialClubTransferFee, transferWindowOpen } = await import('../src/domain/official-club-engine.js');
+  const { advanceWeek } = await import('../src/domain/gameplay-engine.js');
+  const { formatGameDate, matchdayDate, transferWindowFor, winterBreakAfter } = await import('../src/domain/season-calendar.js');
+  const rng = new SeededRandom(77);
+  let profile = createPlayerCareer('window-move', 'Mover', 'FW', T0, new SeededRandom(2_654_435_761), 'ENG');
+  let now = T0;
+  for (let week = 0; week < 3; week += 1) {
+    now = new Date(now.getTime() + 7 * 86_400_000);
+    profile = advanceWeek(profile, now, rng).profile;
+    if ((profile.unassignedMatchExp ?? 0) > 0) profile = assignMatchExp(profile, { shots: profile.unassignedMatchExp }, now).profile;
+  }
+  assert.ok(transferWindowOpen(profile), 'the summer window is still open after three rounds');
+  const appearances = profile.seasonStats!.appearances;
+  const target = listEligibleClubs(profile)[0];
+  profile.money = officialClubTransferFee(target.id);
+  const moved = joinOfficialClub(profile, target.id, now);
+  assert.equal(moved.clubState!.fixtures.filter((fixture) => fixture.played).length, 3, 'the new club has played the same rounds');
+  assert.equal(moved.league.matchday, 4);
+  assert.equal(moved.seasonStats!.appearances, appearances, 'personal season stats carry over');
+
+  const total = moved.clubState!.fixtures.length;
+  const half = winterBreakAfter(total);
+  const shut = structuredClone(moved);
+  for (const fixture of shut.clubState!.fixtures.filter((item) => item.matchday <= 8)) fixture.played = true;
+  assert.equal(transferWindowFor(shut.clubState!), undefined);
+  for (const fixture of shut.clubState!.fixtures.filter((item) => item.matchday <= half)) fixture.played = true;
+  assert.equal(transferWindowFor(shut.clubState!), 'WINTER');
+  // Mid-December before the break, a January restart after it.
+  assert.equal(matchdayDate(2026, half, total).getUTCMonth(), 11);
+  assert.equal(matchdayDate(2026, half + 1, total).getUTCMonth(), 0);
+  assert.match(formatGameDate(matchdayDate(2026, 1, total)), /Agu/);
+});
+
+test('original training categories, detailed positions, and fans', async () => {
+  const { trainRegular, resolvePosition, REGULAR_TRAINING } = await import('../src/domain/engine.js');
+  const { resolvePlayerWeeklyEvent } = await import('../src/domain/gameplay-engine.js');
+  const profile = createPlayerCareer('training-cats', 'Cats', 'MF', T0, new SeededRandom(5));
+  const trained = trainRegular(profile, 'stamina', T0, new SeededRandom(6));
+  assert.deepEqual(Object.keys(trained.applied).sort(), Object.keys(REGULAR_TRAINING.stamina.weights).sort());
+  assert.ok(trained.expGained > 0);
+  assert.throws(() => trainRegular(trained.profile, 'pass', T0, new SeededRandom(7)), /sudah dilakukan/);
+  assert.deepEqual(resolvePosition('CDM'), { group: 'MF', detail: 'CDM' });
+  assert.deepEqual(resolvePosition('FW'), { group: 'FW' });
+  assert.equal(resolvePosition('XX'), undefined);
+
+  const pending = structuredClone(profile);
+  pending.weekStage = 'EVENT_PENDING';
+  pending.weeklyEvent = { id: 'windfall', type: 'FAN_WINDFALL', title: 'Viral', description: '', resolved: false, createdAt: T0.toISOString(), week: 1, choices: [{ id: 'engage', label: 'Balas', description: '', fansDelta: 100 }] };
+  assert.equal(resolvePlayerWeeklyEvent(pending, 'engage', T0).profile.fans, 100, 'the windfall grants +100 Fans as in the recording');
+});

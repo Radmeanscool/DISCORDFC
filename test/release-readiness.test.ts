@@ -67,9 +67,10 @@ test('official club transfer enforces rating, insufficient-funds, window, and sa
 
   assert.throws(() => joinOfficialClub(base, base.clubState!.officialId!, NOW), /sudah berada di klub tersebut/);
 
+  // Between the summer window (first four rounds) and the January window the window is shut.
   const midSeason = structuredClone(base);
   midSeason.money = fee;
-  midSeason.clubState!.fixtures[0].played = true;
+  for (const fixture of [...midSeason.clubState!.fixtures].sort((a, b) => a.matchday - b.matchday).slice(0, 6)) fixture.played = true;
   assert.throws(() => joinOfficialClub(midSeason, target.id, NOW), /Transfer window tutup/);
 
   const exact = structuredClone(base);

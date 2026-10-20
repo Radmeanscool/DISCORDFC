@@ -190,6 +190,9 @@ export function createInitialProfile(userId: string, displayName: string, positi
     totalExp: 0,
     stats: deriveMacroStats(detailedSkills),
     skillBase: skillBaseFrom(detailedSkills),
+    calendarStartYear: now.getUTCFullYear(),
+    fans: 0,
+    diamonds: 0,
     abilities: defaultAbilities(),
     career: {
       appearances: 0,
@@ -241,6 +244,79 @@ export function getRating(profile: PlayerProfile): number {
  * Regular Training: the selected macro ability is trained through its detailed
  * skills, so the gain persists after macro stats are re-derived. One session per week.
  */
+export type RegularTrainingFocus = 'shoot' | 'dribbling' | 'speed' | 'stamina' | 'pass' | 'defense' | 'physical';
+
+/**
+ * Regular Training categories as named in the recordings (Shoot, Dribbling, Speed,
+ * Stamina, Pass, Defense, Physical). Which skills each one feeds is RECOVERY_INFERRED.
+ */
+export const REGULAR_TRAINING: Record<RegularTrainingFocus, { label: string; weights: Partial<Record<DetailedSkillId, number>> }> = {
+  shoot: { label: 'Shoot', weights: { shots: 2, penalty: 1, freeKick: 1 } },
+  dribbling: { label: 'Dribbling', weights: { dribbling: 2, offBallRunning: 1 } },
+  speed: { label: 'Speed', weights: { speed: 2, offBallRunning: 1 } },
+  stamina: { label: 'Stamina', weights: { endurance: 2, willpower: 1 } },
+  pass: { label: 'Pass', weights: { pass: 2, teamwork: 1, freeKick: 1 } },
+  defense: { label: 'Defense', weights: { holdOffDefenders: 2, header: 1, teamwork: 1 } },
+  physical: { label: 'Physical', weights: { holdOffDefenders: 1, header: 1, endurance: 1, willpower: 1 } }
+};
+
+export function isRegularTrainingFocus(value: string): value is RegularTrainingFocus {
+  return value in REGULAR_TRAINING;
+}
+
+/** Detailed positions offered at creation (recordings); each maps to the engine's position group. */
+export const POSITION_DETAILS: Record<string, { group: Position; label: string }> = {
+  ST: { group: 'FW', label: 'ST · Striker' },
+  CAM: { group: 'MF', label: 'CAM · Attacking Midfield' },
+  LM: { group: 'MF', label: 'LM · Left Midfield' },
+  RM: { group: 'MF', label: 'RM · Right Midfield' },
+  CM: { group: 'MF', label: 'CM · Central Midfield' },
+  CDM: { group: 'MF', label: 'CDM · Defensive Midfield' },
+  LB: { group: 'DF', label: 'LB · Left-Back' },
+  RB: { group: 'DF', label: 'RB · Right-Back' },
+  CB: { group: 'DF', label: 'CB · Centre-Back' },
+  GK: { group: 'GK', label: 'GK · Goalkeeper' }
+};
+
+/** Accepts a detailed position (ST, CB…) or a group (FW, DF…). */
+export function resolvePosition(code: string): { group: Position; detail?: string } | undefined {
+  if (POSITION_DETAILS[code]) return { group: POSITION_DETAILS[code].group, detail: code };
+  return ['GK', 'DF', 'MF', 'FW'].includes(code) ? { group: code as Position } : undefined;
+}
+
+export interface RegularTrainResult {
+  profile: PlayerProfile;
+  focus: RegularTrainingFocus;
+  expGained: number;
+  applied: Partial<Record<DetailedSkillId, number>>;
+}
+
+/** Regular Training by one of the original categories: once per week, costs energy. */
+export function trainRegular(profileInput: PlayerProfile, focus: RegularTrainingFocus, now = new Date(), rng: RandomSource = new MathRandomSource()): RegularTrainResult {
+  const profile = cloneProfile(profileInput);
+  applyTimeRecovery(profile, now);
+  if (!isRegularTrainingFocus(focus)) throw new Error(`Unknown training: ${focus}`);
+  assertCanTrain(profile);
+  profile.detailedSkills = normalizeDetailedSkills(profile.detailedSkills, 1);
+  const applied = distributeSkillExp(profile, REGULAR_TRAINING[focus].weights, trainingExpFor(rng));
+  const expGained = Object.values(applied).reduce((sum, value) => sum + (value ?? 0), 0);
+  if (expGained <= 0) throw new Error('Semua skill pada latihan ini sudah mencapai level maksimal.');
+  profile.energy -= GAME_BALANCE.training.energyCost;
+  profile.regularTrainingWeek = Math.max(1, profile.careerWeek ?? 1);
+  profile.totalExp += expGained;
+  profile.stats = deriveMacroStats(profile.detailedSkills);
+  profile.level = Math.max(profile.level, Math.floor(profile.totalExp / 100) + 1);
+  profile.updatedAt = isoNow(now);
+  return { profile, focus, expGained, applied };
+}
+
+function assertCanTrain(profile: PlayerProfile): void {
+  if (profile.careerStatus === 'RETIRED') throw new Error('Karier ini sudah pensiun. Pilih Rebirth untuk memulai karier baru.');
+  if ((profile.injury?.weeksRemaining ?? 0) > 0) throw new Error('Pemain cedera dan harus memulihkan diri sebelum latihan.');
+  if (profile.regularTrainingWeek === Math.max(1, profile.careerWeek ?? 1)) throw new Error('Regular Training minggu ini sudah dilakukan. Lanjutkan dengan Next Week.');
+  if (profile.energy < GAME_BALANCE.training.energyCost) throw new Error('Energi tidak cukup. Tunggu pemulihan atau lanjutkan ke Weekly Update berikutnya.');
+}
+
 export function trainPlayer(profileInput: PlayerProfile, ability: AbilityId, now = new Date(), rng: RandomSource = new MathRandomSource()): TrainResult {
   const profile = cloneProfile(profileInput);
   applyTimeRecovery(profile, now);

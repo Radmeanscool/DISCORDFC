@@ -5,6 +5,8 @@ import { applyTimeRecovery, createInitialProfile, getRating, initialDetailedSkil
 import { formatMoney } from './format.js';
 import { ensureSeasonTracking, finishPlayerSeason, freshSeasonStats, playPlayerFixture } from './player-match-engine.js';
 import { withInjuryEvent } from './match-timeline.js';
+import { formatGameDate, matchdayDate, nextMatchDate, playedMatchdays, seasonYear, SUMMER_WINDOW_MATCHDAYS, transferWindowFor, winterBreakAfter } from './season-calendar.js';
+import { generateTransferOffers } from './official-club-engine.js';
 import { detailedTrainingExpFor, ratingSkillsFor, skillLevelCost } from './player-formulas.js';
 import { grantSkillExp, isSkillMaxed } from './skill-engine.js';
 import {
@@ -85,6 +87,8 @@ export function ensureGameplayState(profileInput: PlayerProfile, now = new Date(
   profile.honors ??= [];
   profile.detailedSkills = normalizeDetailedSkills(profile.detailedSkills ?? legacyToDetailed(profile), 1);
   profile.skillBase ??= legacySkillBase(profile);
+  profile.fans ??= 0;
+  profile.diamonds ??= 0;
   profile.updatedAt = profile.updatedAt || iso(now);
   profile.lastActionAt = profile.lastActionAt || iso(now);
   applyTimeRecovery(profile, now);
@@ -454,9 +458,9 @@ function createPlayerWeeklyEvent(profile: PlayerProfile, now: Date, rng: RandomS
     title = 'Wawancara setelah latihan';
     description = 'Media klub meminta komentar tentang performa dan target musim ini. Jawabanmu memengaruhi reputasi dan perkembangan karier.';
     choices = [
-      { id: 'honest', label: 'Jawab jujur dan tenang', description: 'Reputasi naik secara konsisten.', charmDelta: 3, expDelta: 16 },
-      { id: 'bold', label: 'Buat pernyataan berani', description: 'Mendapat perhatian besar dan bonus kecil.', charmDelta: 5, moneyDelta: 120 },
-      { id: 'humble', label: 'Puji kerja tim', description: 'Menjaga hubungan dengan ruang ganti.', charmDelta: 2, energyDelta: 5, expDelta: 10 }
+      { id: 'honest', label: 'Jawab jujur dan tenang', description: 'Reputasi naik secara konsisten.', charmDelta: 3, expDelta: 16, fansDelta: 10 },
+      { id: 'bold', label: 'Buat pernyataan berani', description: 'Mendapat perhatian besar dan bonus kecil.', charmDelta: 5, moneyDelta: 120, fansDelta: 30 },
+      { id: 'humble', label: 'Puji kerja tim', description: 'Menjaga hubungan dengan ruang ganti.', charmDelta: 2, energyDelta: 5, expDelta: 10, fansDelta: 5 }
     ];
   } else if (!profile.sponsor) {
     type = 'SPONSOR_OFFER';
@@ -467,12 +471,21 @@ function createPlayerWeeklyEvent(profile: PlayerProfile, now: Date, rng: RandomS
       { id: 'sign', label: `Tanda tangani ${offer.brand}`, description: `Terima ${offer.weeklyReward} money setiap weekly update.`, sponsor: offer },
       { id: 'decline', label: 'Tolak dengan sopan', description: 'Menjaga kebebasan karier tanpa kontrak sponsor.', charmDelta: 1 }
     ];
+  } else if (typeRoll >= 0.81) {
+    // Recordings show a windfall event that grants +100 Fans.
+    type = 'FAN_WINDFALL';
+    title = 'Video latihanmu viral';
+    description = 'Cuplikan latihanmu ramai dibagikan di media sosial. Bagaimana kamu menanggapinya?';
+    choices = [
+      { id: 'engage', label: 'Balas komentar fans', description: '+100 Fans, sedikit melelahkan.', fansDelta: 100, energyDelta: -5 },
+      { id: 'focus', label: 'Tetap fokus latihan', description: 'Abaikan sorotan, tambah EXP.', expDelta: 12 }
+    ];
   } else {
     type = 'LIFESTYLE';
     title = 'Undangan acara klub';
     description = 'Setelah latihan, kamu mendapat undangan acara yang bisa membantu reputasi atau kondisi fisik.';
     choices = [
-      { id: 'attend', label: 'Hadiri acara', description: 'Bangun reputasi dan relasi baru.', charmDelta: 4, energyDelta: -8, moneyDelta: 80 },
+      { id: 'attend', label: 'Hadiri acara', description: 'Bangun reputasi dan relasi baru.', charmDelta: 4, energyDelta: -8, moneyDelta: 80, fansDelta: 20 },
       { id: 'recover', label: 'Pulang dan recovery', description: 'Prioritaskan tubuh untuk pertandingan.', hpDelta: 10, energyDelta: 8 }
     ];
   }
@@ -506,6 +519,7 @@ export function resolvePlayerWeeklyEvent(profileInput: PlayerProfile, choiceId: 
   profile.totalExp += expDelta;
   profile.unassignedMatchExp = (profile.unassignedMatchExp ?? 0) + expDelta;
   profile.charm = Math.max(0, (profile.charm ?? 0) + (choice.charmDelta ?? 0));
+  profile.fans = Math.max(0, (profile.fans ?? 0) + (choice.fansDelta ?? 0));
   profile.energy = Math.min(profile.maxEnergy, Math.max(0, profile.energy + (choice.energyDelta ?? 0)));
   profile.hp = Math.min(profile.maxHp, Math.max(0, profile.hp + (choice.hpDelta ?? 0)));
   if (choice.sponsor) {
@@ -550,6 +564,11 @@ export function preparePlayerWeek(profileInput: PlayerProfile, now = new Date(),
   const sponsorMessage = settleSponsor(profile);
   if (sponsorMessage) narrative.push(sponsorMessage);
   if ((profile.discipline?.suspendedMatches ?? 0) > 0) narrative.push(`Skors aktif: ${profile.discipline!.suspendedMatches} pertandingan.`);
+  const club = profile.clubState;
+  if (club && playedMatchdays(club) === winterBreakAfter(club.fixtures.length) && playedMatchdays(club) > 0) {
+    const resume = nextMatchDate(profile);
+    narrative.push(`❄️ Winter break selesai. Kompetisi dilanjutkan${resume ? ` ${formatGameDate(resume)}` : ''}.`);
+  }
   syncMacroStats(profile);
   const event = createPlayerWeeklyEvent(profile, now, rng);
   if (event) {
@@ -583,6 +602,8 @@ export function playPreparedWeek(profileInput: PlayerProfile, now = new Date(), 
       narrative.push(injuryMessage);
     }
   }
+  if (match.matchday && profile.clubState) match.date = matchdayDate(seasonYear(profile), match.matchday, profile.clubState.fixtures.length).toISOString();
+  if (!fixture.seasonComplete) narrative.push(...openTransferWindow(profile, rng));
   profile.careerWeek = week + 1;
   profile.seasonWeek = Math.max(1, profile.league.matchday);
   const trainingMessage = settleTraining(profile);
@@ -604,6 +625,44 @@ export function playPreparedWeek(profileInput: PlayerProfile, now = new Date(), 
   syncMacroStats(profile);
   touch(profile, now);
   return { profile, week, season: profile.league.season, narrative, match, expAwaitingAssignment: profile.unassignedMatchExp ?? 0, injury, award, retired, stage: profile.weekStage };
+}
+
+/**
+ * In-season transfer windows (season-calendar): offers come once per window after
+ * a few rounds of form (summer) or at the winter break; offers left open when a
+ * window closes expire. Season-end offers are created in finishPlayerSeason.
+ */
+function openTransferWindow(profile: PlayerProfile, rng: RandomSource): string[] {
+  const club = profile.clubState;
+  if (!club) return [];
+  const narrative: string[] = [];
+  const window = transferWindowFor(club);
+  const played = playedMatchdays(club);
+  const half = winterBreakAfter(club.fixtures.length);
+  if (played === half) {
+    const resume = nextMatchDate(profile);
+    narrative.push(`❄️ Winter Break Begins! Liga libur${resume ? ` sampai ${formatGameDate(resume)}` : ''}. Transfer window Januari dibuka.`);
+  }
+  if (!window) {
+    const open = (profile.transferOffers ?? []).filter((offer) => offer.status === 'OPEN');
+    if (open.length) {
+      profile.transferOffers = (profile.transferOffers ?? []).map((offer) => offer.status === 'OPEN' ? { ...offer, status: 'EXPIRED' as const } : offer);
+      narrative.push(`Transfer window ditutup; ${open.length} tawaran kedaluwarsa.`);
+    }
+    return narrative;
+  }
+  const key = `${profile.league.season}-${window}`;
+  const ready = window === 'SUMMER' ? played === SUMMER_WINDOW_MATCHDAYS - 1 : played === half;
+  if (!ready || profile.transferWindowKey === key) return narrative;
+  profile.transferWindowKey = key;
+  const stats = profile.seasonStats;
+  const average = stats?.appearances ? stats.ratingSum / stats.appearances : 0;
+  const offers = generateTransferOffers(profile, rng, average, played ? (stats?.appearances ?? 0) / played : 0, window);
+  if (offers.length) {
+    profile.transferOffers = [...(profile.transferOffers ?? []), ...offers].slice(-12);
+    narrative.push(`📨 ${offers.length} klub mengajukan tawaran transfer (${window === 'SUMMER' ? 'window musim panas' : 'window Januari'}). Buka Personal → Transfer.`);
+  }
+  return narrative;
 }
 
 /** Compatibility path retained for existing commands and stress tests. */
@@ -660,6 +719,8 @@ export function rebirthPlayer(profileInput: PlayerProfile, now = new Date(), pos
   profile.stats = deriveMacroStats(detailedSkills);
   profile.career = { appearances: 0, wins: 0, draws: 0, losses: 0, goals: 0, assists: 0, steals: 0, cleanSheets: 0, yellowCards: 0, injuries: 0, seasonScore: 0, redCards: 0, mvps: 0, championsGoals: 0 };
   profile.league = { season: 1, matchday: 1, points: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 };
+  // The calendar keeps running: the next generation starts the season after the retirement.
+  profile.calendarStartYear = seasonYear(profile) + 1;
   profile.club = randomStarterClub(rng);
   profile.clubState = undefined;
   profile.championsLeague = undefined;

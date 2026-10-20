@@ -71,7 +71,7 @@ Secara default hanya `/play` yang didaftarkan. Balasan `/play` publik; klik pert
 
 ### 3.1 Membuat pemain
 
-`/play` → **Player Mode** → pilih **negara asal** (tim nasional untuk turnamen antar negara; tidak memengaruhi klub) → pilih posisi (GK/DF/MF/FW). Seperti di game asli, atlet mulai sebagai *Free Player* usia 15 lalu **Signed successfully** di klub **divisi 3 acak** (negara mana saja) dengan kontrak awal 2 musim (gaji dibayar tiap minggu). Klub lebih besar didapat lewat performa, tawaran, dan transfer.
+`/play` → **Player Mode** → pilih **negara asal** (tim nasional untuk turnamen antar negara; tidak memengaruhi klub) → pilih posisi seperti di game asli (GK, CB, LB, RB, CDM, CM, CAM, LM, RM, ST). Seperti di game asli, atlet mulai sebagai *Free Player* usia 15 lalu **Signed successfully** di klub **divisi 3 acak** (negara mana saja) dengan kontrak awal 2 musim (gaji dibayar tiap minggu). Klub lebih besar didapat lewat performa, tawaran, dan transfer.
 
 ### 3.2 Player Weekly Hub
 
@@ -82,6 +82,8 @@ Hub menampilkan klub dan peringkat, kondisi (HP/energi), laga berikutnya, statis
 | 1 | **▶ Next Week** (label mengikuti tahap: *Lanjut: Event*, *Main Match*, *Alokasikan EXP*; **Rebirth** setelah pensiun) · tab game asli: **Ability** (level skill) · **Training** (Regular, Skill, Trick, Personal Coach) · **Personal** (Ask for pay, Negotiation, Transfer, Culture Study) · **Club** (League Table, Squad) |
 | 2 | **Menu lainnya…**: Home/profil, Klasemen, Hall of Honor, Champions, Recovery & cedera, Daily reward, Karier, Game Home, Coach Mode, Versus Mode |
 
+Hub menampilkan tanggal kalender game, musim (mis. 2026/27), rating, **Value**, money, **Diamonds** (mata uang premium, belum bisa didapat sampai top up aktif), dan **Fans**. Radar profil memakai label asli OFF/DEF/SPD/STA/TEC/PHY.
+
 ### 3.3 Weekly cycle
 
 ```text
@@ -91,13 +93,16 @@ Hub menampilkan klub dan peringkat, kondisi (HP/energi), laga berikutnya, statis
 - **Next Week**: recovery mingguan, gaji kontrak, trainer, sponsor, cedera/skors berkurang, lalu peluang event. Tanpa event, pertandingan langsung dimainkan pada klik yang sama.
 - **Event**: jika muncul, pilih respons di menu; setelah memilih, pertandingan langsung dimulai. Event dan match boleh terjadi di minggu yang sama, bergantian.
 - **Match live**: pesan diperbarui dari kick-off sampai peluit panjang (0′, 15′, 30′, HT, 60′, 75′, FT) dengan gol, peluang, penyelamatan, dan kartu; momen pemain Anda ditebalkan. Hasil sudah tersimpan sebelum animasi berjalan. Jeda antar-frame diatur `MATCH_ANIMATION_MS` (default 1500; `0` = langsung ke hasil). Fixture liga lain di round itu ikut disimulasikan sehingga klasemen selalu lengkap. Jika cedera, terskors, atau kondisi buruk, Anda menonton dari tribun tetapi klub tetap bermain.
+- **Kalender** (`RECOVERY_INFERRED`, mengikuti rekaman): laga mingguan mulai Agustus; setelah ronde pertengahan (pertengahan Desember) muncul **Winter Break Begins!** dan liga lanjut Januari; musim selesai Mei.
+- **Transfer window**: musim panas (4 ronde pertama), Januari (3 ronde setelah winter break), dan season break. Klub mengirim tawaran di awal tiap window jika performamu bagus (lihat Personal → Transfer). Pindah di tengah musim melanjutkan liga klub baru dari ronde yang sama.
+- **Hasil laga** menampilkan jumlah penonton, MVP, rating pemain, dan klasemen setelah ronde itu, seperti layar pasca-laga game asli.
 - **Alokasi EXP**: pilih **satu** skill (semua EXP masuk ke sana), **beberapa** skill (dibagi rata), atau **⚡ Auto** (dibagi ke skill utama posisi). EXP yang melebihi nilai maksimal mengalir ke skill lain; jika semua skill sudah 99, EXP dikonversi ke money.
 - **Level skill** dimulai dari **Lv 1** di awal karier dan naik satu level tiap bar EXP penuh, seperti di game asli (rekaman: Shots sekitar Lv 12 setelah ±20 laga; trick terbuka di level tertentu). Rating pemain adalah angka terpisah. Tanda `*` = skill utama posisi.
 - Setelah matchday terakhir, season ditutup otomatis: peringkat akhir, promosi/degradasi klub, World Footballer, honors (juara liga, Golden Boot, Young Player), usia +1, sisa kontrak −1 season, dan tawaran transfer. Stage menjadi `SEASON_BREAK` (transfer window terbuka).
 
 ### 3.4 Training
 
-- **Regular Training** (pilih macro ability): sekali per minggu, mengonsumsi energy, EXP masuk ke detailed skill terkait.
+- **Regular Training** dengan 7 kategori asli (Shoot, Dribbling, Speed, Stamina, Pass, Defense, Physical): sekali per minggu, memakai energi; EXP masuk ke skill terkait (pemetaan skill `RECOVERY_INFERRED`).
 - **Detailed Skills**: pilih satu dari 12 skill; selesai pada Weekly Update berikutnya.
 - **Tricks**: membuka trick jika syarat skill terpenuhi (skala 1–99); trick menambah peluang gol dan rating.
 - **Trainer**: sewa trainer (biaya per minggu) untuk EXP mingguan otomatis; bisa dilepas kapan saja.
