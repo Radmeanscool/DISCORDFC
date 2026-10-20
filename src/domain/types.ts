@@ -8,7 +8,7 @@ export type ListingStatus = 'OPEN' | 'SOLD' | 'CANCELLED';
 export type CareerMode = 'PLAYER' | 'COACH';
 export type CareerStatus = 'ACTIVE' | 'RETIRED';
 export type PlayerWeekStage = 'READY' | 'MATCH_READY' | 'EXP_PENDING' | 'EVENT_PENDING' | 'SEASON_BREAK';
-export type PlayerEventType = 'INTERVIEW' | 'SPONSOR_OFFER' | 'MEDICAL_INCIDENT' | 'LIFESTYLE' | 'FAN_WINDFALL';
+export type PlayerEventType = 'INTERVIEW' | 'SPONSOR_OFFER' | 'MEDICAL_INCIDENT' | 'LIFESTYLE' | 'FAN_WINDFALL' | 'WINTER_HOLIDAY';
 export type CoachStatus = 'EMPLOYED' | 'UNEMPLOYED' | 'RETIRED';
 export type CoachAbilityId = 'formation' | 'tactics' | 'stateAdjustment' | 'trainingLevel' | 'lockerRoom' | 'charisma';
 export type CoachTargetType = 'PROMOTION' | 'CHAMPIONSHIP' | 'AVOID_RELEGATION' | 'QCL' | 'TOP_HALF';
@@ -50,6 +50,11 @@ export interface ActiveTraining {
   hpCost: number;
 }
 
+export interface TrickTrainingState {
+  trickId: string;
+  completeAtWeek: number;
+}
+
 export interface TrainerState {
   id: string;
   tier: TrainerTier;
@@ -86,6 +91,8 @@ export interface PlayerEventChoice {
   hpDelta?: number;
   injuryWeeks?: number;
   fansDelta?: number;
+  /** EXP granted straight to one detailed skill (holiday lesson), not to the pending pool. */
+  skillExp?: { skill: DetailedSkillId; amount: number };
   sponsor?: PlayerSponsorContract;
 }
 export interface PlayerWeeklyEvent {
@@ -901,6 +908,8 @@ export interface PlayerProfile {
   positionDetail?: string;
   /** Calendar year in which season 1 of this generation started (dates shown in the game calendar). */
   calendarStartYear?: number;
+  /** Season whose winter-break holiday event was already offered. */
+  winterHolidaySeason?: number;
   /** `${season}-${window}` of the last window that already produced in-season offers. */
   transferWindowKey?: string;
   /** Fans, as shown on the original hub; raised by events, goals, and MVP awards (RECOVERY_INFERRED). */
@@ -920,6 +929,8 @@ export interface PlayerProfile {
   sponsorHistory?: PlayerSponsorContract[];
   charm?: number;
   unlockedTricks?: string[];
+  /** Trick currently being learned; it unlocks when the week arrives or when accelerated with Diamonds. */
+  trickTraining?: TrickTrainingState;
   honors?: HonorRecord[];
   worldFootballer?: WorldFootballerState;
   retirement?: RetirementState;
@@ -1083,6 +1094,37 @@ export const DETAILED_SKILL_LABELS: Record<DetailedSkillId, string> = {
   speed: 'Speed',
   willpower: 'Willpower'
 };
+
+/**
+ * Goalkeepers in the original assign EXP to their own skills: Strike, Reaction,
+ * Hand Toss, GK Kick, Save Penalty, Hold Position, GK Pass Ball, Command Defense,
+ * plus Balance, Jump, and Willpower. They reuse the twelve skill slots; the slots
+ * that drive the keeper rating carry Reaction, Command Defense, GK Pass Ball,
+ * Jump, and Willpower, so balance is unchanged. Off-ball Running has no keeper
+ * counterpart and is hidden for keepers.
+ */
+export const GOALKEEPER_SKILL_LABELS: Partial<Record<DetailedSkillId, string>> = {
+  freeKick: 'Strike',
+  endurance: 'Reaction',
+  dribbling: 'Hand Toss',
+  shots: 'GK Kick',
+  penalty: 'Save Penalty',
+  holdOffDefenders: 'Hold Position',
+  pass: 'GK Pass Ball',
+  teamwork: 'Command Defense',
+  speed: 'Balance',
+  header: 'Jump',
+  willpower: 'Willpower'
+};
+
+export function skillLabel(position: Position, skill: DetailedSkillId): string {
+  return position === 'GK' ? GOALKEEPER_SKILL_LABELS[skill] ?? DETAILED_SKILL_LABELS[skill] : DETAILED_SKILL_LABELS[skill];
+}
+
+/** Skills shown for a position (keepers see their eleven). */
+export function visibleSkills(position: Position): DetailedSkillId[] {
+  return position === 'GK' ? DETAILED_SKILLS.filter((skill) => GOALKEEPER_SKILL_LABELS[skill]) : [...DETAILED_SKILLS];
+}
 
 export const POSITION_LABELS: Record<Position, string> = {
   GK: 'Goalkeeper',

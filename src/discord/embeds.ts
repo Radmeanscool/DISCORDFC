@@ -19,6 +19,7 @@ import {
   COACH_ABILITIES,
   COACH_ABILITY_LABELS,
   DETAILED_SKILL_LABELS,
+  skillLabel,
   HONOR_CATEGORY_LABELS,
   POSITION_LABELS,
   TACTICS,
@@ -172,7 +173,7 @@ const NEXT_STEP: Record<NonNullable<PlayerProfile['weekStage']>, string> = {
 /** Weekly hub: the essentials at a glance and one obvious next step. */
 export function playerWeeklyEmbed(profile: PlayerProfile): EmbedBuilder {
   const stage = profile.weekStage ?? 'READY';
-  const key = ratingSkillsFor(profile.position).slice(0, 4).map((skill) => `${DETAILED_SKILL_LABELS[skill]} **Lv ${skillDisplayLevel(profile, skill)}**`).join(' · ');
+  const key = ratingSkillsFor(profile.position).slice(0, 4).map((skill) => `${skillLabel(profile.position, skill)} **Lv ${skillDisplayLevel(profile, skill)}**`).join(' · ');
   const alerts = statusAlerts(profile);
   const item = embed(`⚽ ${profile.displayName} · ${profile.positionDetail ?? POSITION_LABELS[profile.position]}`, [
     clubLine(profile),

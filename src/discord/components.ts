@@ -16,6 +16,8 @@ import {
   COACH_ABILITY_LABELS,
   DETAILED_SKILLS,
   DETAILED_SKILL_LABELS,
+  skillLabel,
+  visibleSkills,
   FORMATIONS,
   POSITION_LABELS,
   TACTICS,
@@ -201,11 +203,11 @@ export function detailedTrainingControls(userId: string, profile?: SkillView): R
 /** EXP step after a match: pick skills (shared evenly) or let the position's key skills take it. */
 function skillOptions(profile?: SkillView): StringSelectMenuOptionBuilder[] {
   const key = new Set(profile ? ratingSkillsFor(profile.position) : []);
-  return DETAILED_SKILLS.map((skill) => {
+  return (profile ? visibleSkills(profile.position) : DETAILED_SKILLS).map((skill) => {
     const state = profile?.detailedSkills?.[skill];
     if (!profile || !state) return option(skill, DETAILED_SKILL_LABELS[skill]);
     const level = skillDisplayLevel(profile, skill);
-    return option(skill, `${DETAILED_SKILL_LABELS[skill]} · Lv ${level}`, `${key.has(skill) ? '★ Skill utama · ' : ''}${state.exp}/${skillLevelCost(state.level)} EXP menuju Lv ${level + 1}`);
+    return option(skill, `${skillLabel(profile.position, skill)} · Lv ${level}`, `${key.has(skill) ? '★ Skill utama · ' : ''}${state.exp}/${skillLevelCost(state.level)} EXP menuju Lv ${level + 1}`);
   });
 }
 
@@ -224,8 +226,8 @@ export function pendingExpControls(userId: string, profile?: SkillView): Row[] {
 }
 
 /** Training tab: Regular Training with the original seven categories, plus Skill, Trick, and Personal Coach. */
-export function trainingControls(userId: string): Row[] {
-  const skillsOf = (focus: RegularTrainingFocus) => (Object.keys(REGULAR_TRAINING[focus].weights) as DetailedSkillId[]).map((skill) => DETAILED_SKILL_LABELS[skill]).join(', ');
+export function trainingControls(userId: string, position: Position = 'FW'): Row[] {
+  const skillsOf = (focus: RegularTrainingFocus) => (Object.keys(REGULAR_TRAINING[focus].weights) as DetailedSkillId[]).filter((skill) => visibleSkills(position).includes(skill)).map((skill) => skillLabel(position, skill)).join(', ');
   return [
     select(userId, 'train-select', 'Regular Training (1x per minggu) · pilih kategori', (Object.keys(REGULAR_TRAINING) as RegularTrainingFocus[]).map((focus) => option(focus, REGULAR_TRAINING[focus].label, skillsOf(focus)))),
     buttons(
@@ -237,10 +239,12 @@ export function trainingControls(userId: string): Row[] {
   ];
 }
 
-export function trickControls(userId: string, unlockable: TrickDefinition[]): Row[] {
+export function trickControls(userId: string, unlockable: TrickDefinition[], accelerateDiamonds?: number): Row[] {
   const rows: Row[] = [];
-  if (unlockable.length) rows.push(select(userId, 'trick-unlock-select', 'Unlock trick yang syaratnya terpenuhi', unlockable.map((trick) => option(trick.id, trick.name, `Energy ${trick.energyCost} · bonus +${Math.round(trick.matchModifier * 100)}%`))));
-  rows.push(buttons(button(userId, 'train', '⬅ Training'), HUB(userId)));
+  if (unlockable.length) rows.push(select(userId, 'trick-unlock-select', 'Mulai latihan trick yang syaratnya terpenuhi', unlockable.map((trick) => option(trick.id, trick.name, `Energy ${trick.energyCost} · bonus +${Math.round(trick.matchModifier * 100)}%`))));
+  const nav = [button(userId, 'train', '⬅ Training'), HUB(userId)];
+  if (accelerateDiamonds) nav.unshift(button(userId, 'trick-accelerate', `Percepat (${accelerateDiamonds} 💠)`, ButtonStyle.Primary));
+  rows.push(buttons(...nav));
   return rows;
 }
 

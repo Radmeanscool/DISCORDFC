@@ -78,6 +78,10 @@ export interface GameBalance {
     charmGain: number;
     skillExpGain: number;
   };
+  trickTraining: {
+    durationWeeks: number;
+    accelerateDiamonds: number;
+  };
   competition: {
     attemptsPerTeam: number;
     baseGoalChance: number;
@@ -229,6 +233,8 @@ export const GAME_BALANCE: GameBalance = {
   },
   trainer: { maxWeeklyGain: 15, gainPerRatio: 120 },
   culture: { durationWeeks: 2, charmGain: 2, skillExpGain: 18 },
+  // The recording shows a running Bicycle Kick session finished early for 50 Diamonds; duration is RECOVERY_INFERRED.
+  trickTraining: { durationWeeks: 3, accelerateDiamonds: 50 },
   competition: { attemptsPerTeam: 5, baseGoalChance: 0.13, maxGoalChance: 0.32 },
   league: { baseGoals: 1.35, goalScale: 30, maxGoals: 7, promotionSlots: 3, relegationSlots: 3, championsSlots: 4, championsMatchdayGap: 8 },
   contract: { defaultSeasons: 2, salaryDivisor: 100, raiseThreshold: 1.1 },
@@ -314,6 +320,7 @@ export function assertBalance(balance: GameBalance): void {
   if (balance.competition.baseGoalChance <= 0 || balance.competition.maxGoalChance >= 1) throw new Error('Balance goal chance must be between 0 and 1.');
   if (balance.injury.minWeeks < 1 || balance.injury.maxWeeks < balance.injury.minWeeks) throw new Error('Injury week range is invalid.');
   if (balance.weekly.weeksPerSeason < 1 || balance.weekly.maxCareerYear < 1 || balance.detailedTraining.durationWeeks < 1 || balance.weekly.playerEventChance < 0 || balance.weekly.playerEventChance > 1 || balance.weekly.medicalEventChance < 0 || balance.weekly.medicalEventChance > 1 || balance.weekly.sponsorContractWeeks < 1) throw new Error('Weekly progression limits are invalid.');
+  if (balance.trickTraining.durationWeeks < 1 || balance.trickTraining.accelerateDiamonds < 1) throw new Error('Trick training limits are invalid.');
   if (balance.culture.durationWeeks < 1 || balance.trainer.maxWeeklyGain < 1 || balance.trainer.gainPerRatio <= 0) throw new Error('Training progression limits are invalid.');
   if (balance.skillProgression.baseExp < 1 || balance.skillProgression.perLevel < 0 || balance.skillProgression.elitePerLevel < 0 || balance.skillProgression.maxLevel < 2 || balance.skillProgression.maxLevel > 99) throw new Error('Skill progression curve is invalid.');
   if (Math.abs(balance.rating.weightedShare + balance.rating.averageShare - 1) > 1e-9) throw new Error('Rating shares must sum to 1.');

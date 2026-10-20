@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ensureClubState } from '../src/domain/club-engine.js';
-import { advanceWeek, assignMatchExp, ensureGameplayState, hireTrainer, playPreparedWeek, preparePlayerWeek, rebirthPlayer, resolvePlayerWeeklyEvent, retirePlayer, startTrickTraining, trainDetailedSkill, treatInjury } from '../src/domain/gameplay-engine.js';
+import { GAME_BALANCE } from '../src/config/game-balance.js';
+import { accelerateTrickTraining, advanceWeek, assignMatchExp, ensureGameplayState, hireTrainer, playPreparedWeek, preparePlayerWeek, rebirthPlayer, resolvePlayerWeeklyEvent, retirePlayer, startTrickTraining, trainDetailedSkill, treatInjury } from '../src/domain/gameplay-engine.js';
 import { createInitialProfile, playMatch, SeededRandom } from '../src/domain/engine.js';
 
 test('new player starts at age 15 with twelve detailed skills', () => {
@@ -41,11 +42,29 @@ test('detailed training and manual match EXP allocation mutate only requested sk
   assert.equal(allocated.profile.detailedSkills!.pass.exp, trained.profile.detailedSkills!.pass.exp);
 });
 
-test('observed bicycle kick trick unlocks after prerequisites', () => {
+test('observed bicycle kick trick trains over weeks and can be finished with 50 Diamonds', () => {
   const profile = createInitialProfile('gameplay-4', 'Acrobat', 'FW');
   const result = startTrickTraining(profile, 'bicycle-kick');
-  assert.equal(result.profile.unlockedTricks?.includes('bicycle-kick'), true);
+  assert.equal(result.profile.unlockedTricks?.includes('bicycle-kick'), false);
+  assert.equal(result.profile.trickTraining?.trickId, 'bicycle-kick');
+  assert.equal(result.profile.trickTraining?.completeAtWeek, 1 + GAME_BALANCE.trickTraining.durationWeeks);
   assert.equal(result.profile.energy, 76);
+  assert.throws(() => startTrickTraining(result.profile, 'first-touch-turn'), /masih berjalan/);
+  assert.throws(() => accelerateTrickTraining(structuredClone(result.profile)), /Diamonds tidak cukup/);
+  const rich = structuredClone(result.profile);
+  rich.diamonds = 60;
+  const accelerated = accelerateTrickTraining(rich);
+  assert.equal(accelerated.profile.unlockedTricks?.includes('bicycle-kick'), true);
+  assert.equal(accelerated.profile.trickTraining, undefined);
+  assert.equal(accelerated.profile.diamonds, 10);
+  assert.throws(() => accelerateTrickTraining(accelerated.profile), /Tidak ada trick training/);
+
+  const waiting = structuredClone(result.profile);
+  waiting.careerWeek = waiting.trickTraining!.completeAtWeek - 1;
+  const settled = advanceWeek(waiting, new Date('2026-01-08T00:00:00.000Z'), new SeededRandom(4));
+  assert.equal(settled.profile.unlockedTricks?.includes('bicycle-kick'), true);
+  assert.equal(settled.profile.trickTraining, undefined);
+  assert.ok(settled.narrative.some((line) => line.includes('Bicycle Kick berhasil dikuasai')));
 });
 
 test('Player weekly loop exposes update, match, and EXP stages', () => {

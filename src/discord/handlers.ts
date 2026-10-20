@@ -5,14 +5,14 @@ import { claimAchievement, playChampionsLeague, startChampionsLeague, syncAchiev
 import { getContractStatus, renewContract, requestSalaryRaise } from '../domain/contract-engine.js';
 import { acceptJobOffer, advanceCoachRound, assignCoachExp, createCoachCareer, declineJobOffer, generateJobOffer, rebirthCoach, resolveCoachEvent, retireCoach, settleCoachSeasonWithSummary } from '../domain/coach-career-engine.js';
 import { formatMoney } from '../domain/format.js';
-import { assignMatchExp, assignMatchExpEvenly, canRetire, createPlayerCareer, ensureGameplayState, formatDetailedSkills, skillDisplayLevel, formatGameplayStatus, hireTrainer, listTrainerCatalog, playPreparedWeek, preparePlayerWeek, rebirthPlayer, releaseTrainer, resolvePlayerWeeklyEvent, retirePlayer, startCultureStudy, startTrickTraining, trainDetailedSkill, treatInjury } from '../domain/gameplay-engine.js';
+import { assignMatchExp, assignMatchExpEvenly, canRetire, createPlayerCareer, ensureGameplayState, formatDetailedSkills, skillDisplayLevel, skillDisplayLevelFor, accelerateTrickTraining, formatGameplayStatus, hireTrainer, listTrainerCatalog, playPreparedWeek, preparePlayerWeek, rebirthPlayer, releaseTrainer, resolvePlayerWeeklyEvent, retirePlayer, startCultureStudy, startTrickTraining, trainDetailedSkill, treatInjury } from '../domain/gameplay-engine.js';
 import { acceptTransferOffer, declineTransferOffer, joinOfficialClub, listEligibleClubs, listOfficialClubs, officialClubMinimumRating, officialClubTransferFee, transferWindowOpen } from '../domain/official-club-engine.js';
 import { claimDailyReward, COACH_MARKET_SELL_RATE, playerMarketValue, refreshCoachMarket, buyCoachPlayer, sellableCoachPlayers, sellCoachPlayer } from '../domain/progression-engine.js';
 import { dmEnabled } from '../domain/notification-engine.js';
 import { abilityScore, canPlay, versusLeagueCode, versusPlayerValue } from '../domain/versus-engine.js';
 import { releasableVersusPlayers } from '../domain/versus-club-engine.js';
 import { listingAbilityScore, minimumVersusBid } from '../domain/versus-economy.js';
-import { ABILITY_LABELS, COACH_ABILITIES, COACH_ABILITY_LABELS, DETAILED_SKILLS, DETAILED_SKILL_LABELS, FORMATIONS, TACTICS, TRICK_CATALOG, type AbilityId, type CoachAbilityId, type CultureSubject, type DetailedSkillId, type FormationId, type PlayerProfile, type Position, type TacticId, type VersusBattle, type VersusClub, type VersusPlayer, type VersusSeason, type VersusSponsorTier } from '../domain/types.js';
+import { ABILITY_LABELS, COACH_ABILITIES, COACH_ABILITY_LABELS, DETAILED_SKILLS, DETAILED_SKILL_LABELS, skillLabel, FORMATIONS, TACTICS, TRICK_CATALOG, type AbilityId, type CoachAbilityId, type CultureSubject, type DetailedSkillId, type FormationId, type PlayerProfile, type Position, type TacticId, type TrickDefinition, type VersusBattle, type VersusClub, type VersusPlayer, type VersusSeason, type VersusSponsorTier } from '../domain/types.js';
 import { joinVersusGroup, leaveWaitingVersusGroup, openVersus, placeVersusBidFor, releaseVersusPlayerFor, scoutVersusPlayerFor, signVersusSponsorFor, startNextVersusSeason, submitVersusLineupFor, toggleVersusDm, withConflictRetry, type VersusView } from '../services/versus-service.js';
 import type { MaintenanceLockStore, PlayerStore } from '../storage/json-store.js';
 import { runMaintenance, runVersusMaintenance } from '../jobs/maintenance.js';
@@ -20,6 +20,7 @@ import { log } from '../observability/logger.js';
 import { ratingSkillsFor } from '../domain/player-formulas.js';
 import { PLAYER_OVERLAY_SUMMARY } from '../config/recovery-data.js';
 import { BUILD_LABEL } from '../config/build-info.js';
+import { GAME_BALANCE } from '../config/game-balance.js';
 import { isRegularTrainingFocus, NATIONALITIES, REGULAR_TRAINING, resolvePosition, trainRegular } from '../domain/engine.js';
 import { leagueLabel } from '../domain/league-engine.js';
 import { resolveModeCommand } from './commands.js';
@@ -268,7 +269,7 @@ async function autoAssignExp(ctx: Ctx): Promise<Panel> {
   if (!pending) return playerHomeAction(ctx, 'Tidak ada EXP yang menunggu.');
   const result = assignMatchExpEvenly(profile, skills, ctx.now);
   await ctx.store.save(result.profile);
-  return playerHome(result.profile, ctx.userId, `${result.allocated} EXP dibagi ke ${skills.map((skill) => DETAILED_SKILL_LABELS[skill]).join(', ')}${result.levelsGained ? ` · naik ${result.levelsGained} level` : ''}.`);
+  return playerHome(result.profile, ctx.userId, `${result.allocated} EXP dibagi ke ${skills.map((skill) => skillLabel(profile.position, skill)).join(', ')}${result.levelsGained ? ` · naik ${result.levelsGained} level` : ''}.`);
 }
 
 async function assignPendingExp(ctx: Ctx): Promise<Panel> {
@@ -278,7 +279,7 @@ async function assignPendingExp(ctx: Ctx): Promise<Panel> {
   const pending = profile.unassignedMatchExp ?? 0;
   const result = assignMatchExpEvenly(profile, skills, ctx.now);
   await ctx.store.save(result.profile);
-  const target = skills.length === 1 ? DETAILED_SKILL_LABELS[skills[0]] : `${skills.length} skill`;
+  const target = skills.length === 1 ? skillLabel(profile.position, skills[0]) : `${skills.length} skill`;
   return playerHome(result.profile, ctx.userId, `${result.allocated} dari ${pending} EXP dialokasikan ke ${target}${result.levelsGained ? ` · naik ${result.levelsGained} level` : ''}.`);
 }
 
@@ -291,10 +292,10 @@ async function trainingPanel(ctx: Ctx, content?: string): Promise<Panel> {
       `**Latihan rutin** · ${regularDone ? '✅ sudah dilakukan minggu ini' : '🟢 tersedia (1x per minggu)'} · Energi ${profile.energy}/${profile.maxEnergy}`,
       'Pilih fokus di menu; EXP-nya masuk ke skill yang terkait.',
       '',
-      `**Latihan skill khusus** · ${profile.activeTraining ? `${DETAILED_SKILL_LABELS[profile.activeTraining.skill]} selesai minggu ${profile.activeTraining.completeAtWeek}` : '🟢 tersedia'}`,
+      `**Latihan skill khusus** · ${profile.activeTraining ? `${skillLabel(profile.position, profile.activeTraining.skill)} selesai minggu ${profile.activeTraining.completeAtWeek}` : '🟢 tersedia'}`,
       `**Trainer** · ${profile.trainer?.active ? `${profile.trainer.tier} ${profile.trainer.type}` : 'belum ada'}`
     ].join('\n'))],
-    components: trainingControls(ctx.userId)
+    components: trainingControls(ctx.userId, profile.position)
   };
 }
 
@@ -302,7 +303,7 @@ async function regularTraining(ctx: Ctx, choice: string): Promise<Panel> {
   if (isRegularTrainingFocus(choice)) {
     const result = trainRegular(await requireProfile(ctx), choice, ctx.now);
     await ctx.store.save(result.profile);
-    const gains = (Object.entries(result.applied) as Array<[DetailedSkillId, number]>).filter(([, exp]) => exp > 0).map(([skill, exp]) => `${DETAILED_SKILL_LABELS[skill]} +${exp}`).join(', ');
+    const gains = (Object.entries(result.applied) as Array<[DetailedSkillId, number]>).filter(([, exp]) => exp > 0).map(([skill, exp]) => `${skillLabel(result.profile.position, skill)} +${exp}`).join(', ');
     return playerHome(result.profile, ctx.userId, `Regular Training · ${REGULAR_TRAINING[choice].label}: ${gains} EXP.`);
   }
   // Panels sent before the original categories still carry macro ability ids.
@@ -315,7 +316,7 @@ async function regularTraining(ctx: Ctx, choice: string): Promise<Panel> {
 async function detailedTraining(ctx: Ctx, skill: DetailedSkillId): Promise<Panel> {
   const result = trainDetailedSkill(await requireProfile(ctx), skill, ctx.now);
   await ctx.store.save(result.profile);
-  return playerHome(result.profile, ctx.userId, `${DETAILED_SKILL_LABELS[result.skill]} training dimulai: +${result.expGained} EXP pada week ${result.profile.activeTraining?.completeAtWeek}.`);
+  return playerHome(result.profile, ctx.userId, `${skillLabel(result.profile.position, result.skill)} training dimulai: +${result.expGained} EXP pada week ${result.profile.activeTraining?.completeAtWeek}.`);
 }
 
 async function tricksPanel(ctx: Ctx, content?: string): Promise<Panel> {
@@ -323,10 +324,15 @@ async function tricksPanel(ctx: Ctx, content?: string): Promise<Panel> {
   const tricks = Object.values(TRICK_CATALOG);
   const meets = (requires: Partial<Record<DetailedSkillId, number>>) => Object.entries(requires).every(([skill, level]) => (profile.detailedSkills![skill as DetailedSkillId]?.level ?? 0) >= (level ?? 0));
   // Requirements are stored as skill values; shown as the level the athlete must reach.
-  const requirement = (skill: DetailedSkillId, value: number) => `${DETAILED_SKILL_LABELS[skill]} Lv ${Math.max(1, value - (profile.skillBase?.[skill] ?? value) + 1)} (kamu Lv ${skillDisplayLevel(profile, skill)})`;
-  const lines = tricks.map((trick) => `${profile.unlockedTricks!.includes(trick.id) ? '✅' : meets(trick.requires) ? '🔓' : '🔒'} **${trick.name}** · ${Object.entries(trick.requires).map(([skill, level]) => requirement(skill as DetailedSkillId, level ?? 0)).join(', ')} · energi ${trick.energyCost} · +${Math.round(trick.matchModifier * 100)}%`).join('\n');
-  const unlockable = tricks.filter((trick) => !profile.unlockedTricks!.includes(trick.id) && meets(trick.requires));
-  return { content, embeds: [info('✨ Tricks', `${lines}\n\nTrick terbuka menambah peluang gol dan rating di pertandingan.`)], components: trickControls(ctx.userId, unlockable) };
+  const requirement = (skill: DetailedSkillId, value: number) => `${skillLabel(profile.position, skill)} Lv ${skillDisplayLevelFor(profile, skill, value)} (kamu Lv ${skillDisplayLevel(profile, skill)})`;
+  const running = profile.trickTraining;
+  const status = (trick: TrickDefinition) => profile.unlockedTricks!.includes(trick.id) ? '✅' : running?.trickId === trick.id ? '⏳' : meets(trick.requires) ? '🔓' : '🔒';
+  const lines = tricks.map((trick) => `${status(trick)} **${trick.name}** · ${Object.entries(trick.requires).map(([skill, level]) => requirement(skill as DetailedSkillId, level ?? 0)).join(', ')} · energi ${trick.energyCost} · +${Math.round(trick.matchModifier * 100)}%`).join('\n');
+  const unlockable = running ? [] : tricks.filter((trick) => !profile.unlockedTricks!.includes(trick.id) && meets(trick.requires));
+  const progress = running
+    ? `\n\n⏳ **Sedang berlatih ${TRICK_CATALOG[running.trickId]?.name ?? running.trickId}** · selesai minggu ${running.completeAtWeek} (sekarang minggu ${profile.careerWeek ?? 1}) · 💠 ${profile.diamonds ?? 0} Diamonds`
+    : `\n\nLatihan trick butuh ${GAME_BALANCE.trickTraining.durationWeeks} minggu; bisa dipercepat dengan ${GAME_BALANCE.trickTraining.accelerateDiamonds} 💠 Diamonds.`;
+  return { content, embeds: [info('✨ Trick Training', `${lines}${progress}\n\nTrick terbuka menambah peluang gol dan rating di pertandingan.`)], components: trickControls(ctx.userId, unlockable, running ? GAME_BALANCE.trickTraining.accelerateDiamonds : undefined) };
 }
 
 async function trainerPanel(ctx: Ctx, content?: string): Promise<Panel> {
@@ -867,7 +873,7 @@ async function routeComponent(ctx: Ctx, action: string): Promise<Panel> {
       return autoAssignExp(ctx);
     case 'player-event-select': {
       const result = resolvePlayerWeeklyEvent(await requireProfile(ctx), value(ctx), ctx.now);
-      return playMatch(ctx, result.profile, [`${result.event.title}: kamu memilih "${result.choice.label}".`]);
+      return playMatch(ctx, result.profile, [`${result.event.title}: kamu memilih "${result.choice.label}".`, ...(result.note ? [result.note] : [])]);
     }
     case 'coach-menu-select': {
       const target = value(ctx);
@@ -897,6 +903,8 @@ async function routeComponent(ctx: Ctx, action: string): Promise<Panel> {
       return tricksPanel(ctx);
     case 'trick-unlock-select':
       return gameplayAction(ctx, (profile) => startTrickTraining(profile, value(ctx), ctx.now), tricksPanel);
+    case 'trick-accelerate':
+      return gameplayAction(ctx, (profile) => accelerateTrickTraining(profile, ctx.now), tricksPanel);
     case 'player-trainer':
       return trainerPanel(ctx);
     case 'trainer-hire-select':
