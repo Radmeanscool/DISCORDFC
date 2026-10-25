@@ -5,7 +5,7 @@ import { claimAchievement, playChampionsLeague, startChampionsLeague, syncAchiev
 import { getContractStatus, renewContract, requestSalaryRaise } from '../domain/contract-engine.js';
 import { acceptJobOffer, advanceCoachRound, assignCoachExp, createCoachCareer, declineJobOffer, generateJobOffer, rebirthCoach, resolveCoachEvent, retireCoach, settleCoachSeasonWithSummary } from '../domain/coach-career-engine.js';
 import { formatMoney } from '../domain/format.js';
-import { assignMatchExp, assignMatchExpEvenly, canRetire, createPlayerCareer, ensureGameplayState, formatDetailedSkills, skillDisplayLevel, skillDisplayLevelFor, accelerateTrickTraining, formatGameplayStatus, hireTrainer, listTrainerCatalog, playPreparedWeek, preparePlayerWeek, rebirthPlayer, releaseTrainer, resolvePlayerWeeklyEvent, retirePlayer, startCultureStudy, startTrickTraining, trainDetailedSkill, treatInjury } from '../domain/gameplay-engine.js';
+import { assignMatchExp, assignMatchExpEvenly, canRetire, createPlayerCareer, ensureGameplayState, formatDetailedSkills, skillDisplayLevel, skillDisplayLevelFor, accelerateTrickTraining, formatGameplayStatus, hireTrainer, listTrainerCatalog, playPreparedWeek, preparePlayerWeek, rebirthPlayer, releaseTrainer, playEarthCupWeek, resolvePlayerWeeklyEvent, retirePlayer, startCultureStudy, startTrickTraining, trainDetailedSkill, treatInjury } from '../domain/gameplay-engine.js';
 import { acceptTransferOffer, declineTransferOffer, joinOfficialClub, listEligibleClubs, listOfficialClubs, officialClubMinimumRating, officialClubTransferFee, transferWindowOpen } from '../domain/official-club-engine.js';
 import { claimDailyReward, COACH_MARKET_SELL_RATE, playerMarketValue, refreshCoachMarket, buyCoachPlayer, sellableCoachPlayers, sellCoachPlayer } from '../domain/progression-engine.js';
 import { dmEnabled } from '../domain/notification-engine.js';
@@ -23,6 +23,7 @@ import { BUILD_LABEL } from '../config/build-info.js';
 import { GAME_BALANCE } from '../config/game-balance.js';
 import { isRegularTrainingFocus, NATIONALITIES, REGULAR_TRAINING, resolvePosition, trainRegular } from '../domain/engine.js';
 import { leagueLabel } from '../domain/league-engine.js';
+import { earthCupActive } from '../domain/earth-cup.js';
 import { resolveModeCommand } from './commands.js';
 import {
   championsControls,
@@ -70,6 +71,7 @@ import {
   BRAND_COLOR,
   clip,
   coachHomeEmbed,
+  earthCupEmbed,
   coachRoundEmbed,
   coachSeasonEmbed,
   contractEmbed,
@@ -230,6 +232,15 @@ async function playMatch(ctx: Ctx, profile: PlayerProfile, weeklyNotes: string[]
   return { embeds: [matchResultEmbed(result, weeklyNotes)], components, frames };
 }
 
+/** Earth Cup week: the national-team match plays live like a league match. */
+async function earthCupMatch(ctx: Ctx, profile: PlayerProfile): Promise<Panel> {
+  const result = playEarthCupWeek(profile, ctx.now);
+  await ctx.store.save(result.profile);
+  const frames = result.match?.timeline ? LIVE_CHECKPOINTS.map((minute) => liveMatchEmbed(result.match!, minute)) : [];
+  const components = result.expAwaitingAssignment > 0 ? pendingExpControls(ctx.userId, result.profile) : playerWeeklyControls(ctx.userId, result.profile.weekStage ?? 'READY', false);
+  return { embeds: [matchResultEmbed(result)], components, frames };
+}
+
 /**
  * The single weekly button: whatever stage the week is in, it moves to the next
  * step — weekly update, then the event (if any), then the match, then EXP.
@@ -248,6 +259,7 @@ async function continueWeek(ctx: Ctx): Promise<Panel> {
     default:
       break;
   }
+  if (earthCupActive(profile)) return earthCupMatch(ctx, profile);
   const prepared = preparePlayerWeek(profile, ctx.now);
   if (prepared.stage === 'EVENT_PENDING' && prepared.event) {
     await ctx.store.save(prepared.profile);
@@ -965,6 +977,10 @@ async function routeComponent(ctx: Ctx, action: string): Promise<Panel> {
       const result = claimDailyReward(await requireProfile(ctx), ctx.now);
       await ctx.store.save(result.profile);
       return playerHome(result.profile, ctx.userId, `Daily reward: +${formatMoney(result.amount)} money, +${result.exp} EXP · streak ${result.streak} hari.`);
+    }
+    case 'player-earth-cup': {
+      const profile = ensureGameplayState(await requireProfile(ctx), ctx.now);
+      return { embeds: [earthCupEmbed(profile)], components: playerWeeklyControls(ctx.userId, profile.weekStage ?? 'READY', profile.careerStatus === 'RETIRED') };
     }
     case 'player-champions':
     case 'player-champions-status':

@@ -1,13 +1,15 @@
 import { GAME_BALANCE } from '../config/game-balance.js';
 import { payWeeklySalary, signContract } from './contract-engine.js';
 import { ensureClubState } from './club-engine.js';
-import { applyTimeRecovery, createInitialProfile, getRating, initialDetailedSkills, MathRandomSource, randomStarterClub, skillBaseFrom, type RandomSource } from './engine.js';
+import { applyTimeRecovery, createInitialProfile, getRating, initialDetailedSkills, MathRandomSource, randomStarterClub, SeededRandom, skillBaseFrom, type RandomSource } from './engine.js';
 import { formatMoney } from './format.js';
-import { ensureSeasonTracking, finishPlayerSeason, freshSeasonStats, playPlayerFixture } from './player-match-engine.js';
-import { withInjuryEvent } from './match-timeline.js';
+import { ensureSeasonTracking, finishPlayerSeason, freshSeasonStats, playPlayerFixture, trickBonus } from './player-match-engine.js';
+import { buildMatchRatings, buildMatchTimeline, withInjuryEvent } from './match-timeline.js';
+import { advanceEarthCup, earthCupActive, earthCupMatchDate, earthCupStageName, EARTH_CUP_GROUP_MATCHES, nationalSquad, nationalStartingTeammates, nationalTeam, nationalTeamRating, nationLabel, simulateEarthCupScore } from './earth-cup.js';
+import { stableHash } from './league-engine.js';
 import { formatGameDate, matchdayDate, nextMatchDate, playedMatchdays, seasonYear, SUMMER_WINDOW_MATCHDAYS, transferWindowFor, winterBreakAfter } from './season-calendar.js';
 import { generateTransferOffers } from './official-club-engine.js';
-import { detailedTrainingExpFor, ratingSkillsFor, skillLevelCost } from './player-formulas.js';
+import { detailedTrainingExpFor, personalMatchRewards, PLAYER_FORMULA_VERSION, ratingSkillsFor, simulatePersonalPerformance, skillLevelCost } from './player-formulas.js';
 import { grantSkillExp, isSkillMaxed } from './skill-engine.js';
 import {
   DETAILED_SKILLS,
@@ -22,9 +24,12 @@ import {
   type CultureSubject,
   type DetailedSkillId,
   type DetailedSkills,
+  type EarthCupState,
   type ExpAllocationResult,
   type GameplayActionResult,
   type InjurySeverity,
+  type MatchOutcome,
+  type MatchRecord,
   type PlayerEventChoice,
   type PlayerEventType,
   type PlayerProfile,
@@ -456,6 +461,7 @@ function retire(profile: PlayerProfile, now: Date): void {
   profile.activeTraining = undefined;
   profile.trickTraining = undefined;
   profile.cultureStudy = undefined;
+  if (profile.earthCup?.status === 'ACTIVE') profile.earthCup = undefined;
   if (profile.trainer) profile.trainer.active = false;
 }
 
@@ -625,6 +631,7 @@ export function preparePlayerWeek(profileInput: PlayerProfile, now = new Date(),
   if (profile.weekStage === 'MATCH_READY') throw new Error('Weekly update sudah selesai. Lanjutkan ke Match Ready terlebih dahulu.');
   if (profile.weekStage === 'EXP_PENDING') throw new Error('Assign EXP hasil pertandingan terlebih dahulu.');
   if (profile.weekStage === 'EVENT_PENDING') throw new Error('Selesaikan event mingguan terlebih dahulu.');
+  if (earthCupActive(profile)) throw new Error('Earth Cup sedang berlangsung. Tekan Next Week untuk laga timnas berikutnya.');
   ensureSeasonTracking(profile);
   const week = currentWeek(profile);
   const narrative: string[] = [`Weekly Update · Week ${week} dimulai untuk ${profile.displayName}.`];
@@ -709,6 +716,129 @@ export function playPreparedWeek(profileInput: PlayerProfile, now = new Date(), 
 }
 
 /**
+ * One Earth Cup match per Next Week during the season break (earth-cup.ts). It
+ * is a game week like any other: condition recovers, injuries heal, training
+ * timers run, and the match EXP goes to the pending pool.
+ */
+export function playEarthCupWeek(profileInput: PlayerProfile, now = new Date(), rng: RandomSource = new MathRandomSource()): WeekResult {
+  const profile = ensureGameplayState(profileInput, now);
+  requireActive(profile);
+  const cup = profile.earthCup;
+  if (!cup || cup.status !== 'ACTIVE' || !cup.opponent) throw new Error('Tidak ada Earth Cup yang sedang berjalan.');
+  if ((profile.unassignedMatchExp ?? 0) > 0 || profile.weekStage === 'EXP_PENDING') throw new Error('Assign EXP hasil pertandingan terlebih dahulu.');
+  const week = currentWeek(profile);
+  const stage = cup.stage;
+  const stageLabel = `Earth Cup · ${earthCupStageName(stage)}`;
+  const narrative: string[] = [`${stageLabel} · ${nationLabel(cup.nation)} vs ${nationLabel(cup.opponent)}.`];
+  recoverWeekly(profile);
+  const injuryMessage = settleInjury(profile);
+  if (injuryMessage) narrative.push(injuryMessage);
+  const own = nationalTeam(cup.nation);
+  const rival = nationalTeam(cup.opponent);
+  // A national team does not inherit club suspensions; only fitness keeps the athlete out.
+  const absence = (profile.injury?.weeksRemaining ?? 0) > 0 ? 'INJURED' as const : profile.energy < GAME_BALANCE.match.energyCost || profile.hp < GAME_BALANCE.match.hpCost ? 'CONDITION' as const : undefined;
+  const playerRating = getRating(profile);
+  const ownRating = nationalTeamRating(cup.nation, absence ? undefined : playerRating);
+  const knockout = stage >= EARTH_CUP_GROUP_MATCHES;
+  const score = simulateEarthCupScore(ownRating, rival.strength, knockout, rng, ((profile.detailedSkills?.penalty.level ?? 50) - 50) / 400);
+  const personal = absence
+    ? { played: false, absence, goals: 0, assists: 0, rating: 0, yellowCard: false, redCard: false, mvp: false, cleanSheet: false }
+    : simulatePersonalPerformance({ position: profile.position, skills: profile.detailedSkills!, playerRating, squadAverage: own.strength, opponentStrength: rival.strength, teamGoals: score.goalsFor, opponentGoals: score.goalsAgainst, outcome: score.outcome, trickBonus: trickBonus(profile) }, rng);
+  // Group matches keep their draw; a knockout settled on penalties counts as the shoot-out result.
+  const outcome: MatchOutcome = knockout ? (score.won ? 'WIN' : 'LOSS') : score.outcome;
+  const rewards = personalMatchRewards(outcome, personal);
+  if (personal.played) {
+    profile.energy = Math.max(0, profile.energy - GAME_BALANCE.match.energyCost);
+    profile.hp = Math.max(0, profile.hp - GAME_BALANCE.match.hpCost);
+    profile.career.appearances += 1;
+    profile.nationalCaps = (profile.nationalCaps ?? 0) + 1;
+    profile.nationalGoals = (profile.nationalGoals ?? 0) + personal.goals;
+    profile.career.goals += personal.goals;
+    profile.career.assists += personal.assists;
+    profile.career.mvps = (profile.career.mvps ?? 0) + (personal.mvp ? 1 : 0);
+    // RECOVERY_INFERRED: the world stage draws more supporters than a league match.
+    profile.fans = (profile.fans ?? 0) + personal.goals * 10 + (personal.mvp ? 40 : 0) + (outcome === 'WIN' ? 5 : 0);
+    narrative.push(`Rating ${personal.rating.toFixed(1)} · ${personal.goals} gol · ${personal.assists} assist${personal.mvp ? ' · **MVP**' : ''}.`);
+  } else {
+    narrative.push(`${profile.displayName} absen (${absence === 'INJURED' ? 'cedera' : 'kondisi fisik'}); ${own.name} bermain tanpamu.`);
+  }
+  if (rewards.money > 0) {
+    profile.money += rewards.money;
+    profile.ledger ??= [];
+    profile.ledger.unshift({ id: `${profile.userId}-MATCH-${now.getTime()}-${profile.ledger.length}`, createdAt: iso(now), type: 'MATCH_REWARD', amount: rewards.money, balanceAfter: profile.money, note: `Bonus timnas vs ${rival.name}` });
+    profile.ledger = profile.ledger.slice(0, 100);
+  }
+  profile.totalExp += rewards.exp;
+  profile.unassignedMatchExp = (profile.unassignedMatchExp ?? 0) + rewards.exp;
+
+  const matchId = `${profile.userId}-${now.getTime()}`;
+  const look = new SeededRandom(stableHash(`${matchId}:earth-cup`));
+  const firstHalf = (goals: number) => Array.from({ length: goals }).filter(() => look.next() < 0.45).length;
+  const halftime = { team: firstHalf(score.goalsFor), opponent: firstHalf(score.goalsAgainst) };
+  const shots = score.goalsFor * 2 + 5 + Math.floor(look.next() * 6);
+  const opponentShots = score.goalsAgainst * 2 + 5 + Math.floor(look.next() * 6);
+  const opponentShotsOnTarget = Math.min(opponentShots, score.goalsAgainst + 1 + Math.floor(look.next() * 3));
+  const possession = Math.round(Math.min(65, Math.max(35, 50 + (ownRating - rival.strength) / 2)));
+  const teammates = nationalStartingTeammates(nationalSquad(cup.nation, cup.year), profile.position).filter((player) => player.name !== profile.displayName);
+  const opponents = nationalSquad(rival.code, cup.year).filter((player) => player.position === 'FW' || player.position === 'MF').map((player) => player.name);
+  let timeline = buildMatchTimeline({ seed: `${matchId}:${stage}`, teamName: own.name, opponentName: rival.name, teamGoals: score.goalsFor, opponentGoals: score.goalsAgainst, halftime, userName: profile.displayName, position: profile.position, personal, teammates, opponents, shots, opponentShots, opponentShotsOnTarget });
+  const ratings = buildMatchRatings({ seed: matchId, squad: teammates.slice(0, 10), userName: profile.displayName, position: profile.position, personal, timeline, outcome: score.outcome, opponentGoals: score.goalsAgainst });
+  let injury;
+  if (personal.played) {
+    const hurt = maybeInjure(profile, now, rng);
+    if (hurt) {
+      injury = profile.injury;
+      timeline = withInjuryEvent(timeline, profile.displayName, matchId);
+      narrative.push(hurt);
+    }
+  }
+  if (score.penalties) narrative.push(`Adu penalti ${score.penalties.for}–${score.penalties.against}: ${score.won ? `${own.name} menang` : `${rival.name} menang`}.`);
+  narrative.push(...advanceEarthCup(cup, score, personal.played ? { goals: personal.goals, assists: personal.assists, rating: personal.rating } : undefined, rng));
+  // advanceEarthCup changed the status; read it through the declared type.
+  if ((cup as EarthCupState).status === 'CHAMPION') {
+    profile.honors ??= [];
+    const id = `earth-cup-${cup.year}-${cup.nation}`;
+    if (!profile.honors.some((item) => item.id === id)) profile.honors.push({ id, category: 'NATIONAL', title: `Earth Cup ${cup.year} · ${own.name}`, season: cup.season, description: `${own.name} juara Earth Cup ${cup.year}.`, source: 'RECOVERY_INFERRED', value: EARTH_CUP_GROUP_MATCHES + 4, awardedAt: iso(now) });
+    profile.fans = (profile.fans ?? 0) + 500;
+  }
+  const match: MatchRecord = {
+    id: matchId,
+    createdAt: iso(now),
+    opponent: rival.name,
+    opponentRating: rival.strength,
+    playerRating,
+    outcome,
+    playerGoals: score.goalsFor,
+    opponentGoals: score.goalsAgainst,
+    playerScore: personal.rating,
+    rewards,
+    stats: { possession, opponentPossession: 100 - possession, shots, opponentShots, shotsOnTarget: Math.min(shots, score.goalsFor + 1 + Math.floor(look.next() * 4)), opponentShotsOnTarget, corners: 2 + Math.floor(look.next() * 6), opponentCorners: 2 + Math.floor(look.next() * 6) },
+    week,
+    formulaVersion: PLAYER_FORMULA_VERSION,
+    personal,
+    injury,
+    competition: 'EARTH_CUP',
+    stageLabel,
+    teamName: own.name,
+    halftime,
+    timeline,
+    ratings,
+    mvpName: personal.played && personal.mvp ? profile.displayName : ratings.find((item) => !item.user)?.name,
+    attendance: Math.round((52_000 + look.next() * 30_000) / 10) * 10,
+    date: earthCupMatchDate(cup.year, stage).toISOString()
+  };
+  profile.lastMatch = match;
+  profile.careerWeek = week + 1;
+  for (const message of [settleTraining(profile), settleCulture(profile), settleTrickTraining(profile)]) if (message) narrative.push(message);
+  const surplusMessage = settleSurplusExp(profile, now);
+  if (surplusMessage) narrative.push(surplusMessage);
+  profile.weekStage = (profile.unassignedMatchExp ?? 0) > 0 ? 'EXP_PENDING' : 'SEASON_BREAK';
+  syncMacroStats(profile);
+  touch(profile, now);
+  return { profile, week, season: profile.league.season, narrative, match, expAwaitingAssignment: profile.unassignedMatchExp ?? 0, injury, retired: false, stage: profile.weekStage };
+}
+
+/**
  * In-season transfer windows (season-calendar): offers come once per window after
  * a few rounds of form (summer) or at the winter break; offers left open when a
  * window closes expire. Season-end offers are created in finishPlayerSeason.
@@ -748,6 +878,7 @@ function openTransferWindow(profile: PlayerProfile, rng: RandomSource): string[]
 
 /** Compatibility path retained for existing commands and stress tests. */
 export function advanceWeek(profileInput: PlayerProfile, now = new Date(), rng: RandomSource = new MathRandomSource()): WeekResult {
+  if (earthCupActive(profileInput)) return playEarthCupWeek(profileInput, now, rng);
   // The weekly event draw uses the same source so seeded simulations are reproducible.
   const prepared = preparePlayerWeek(profileInput, now, rng);
   const readyProfile = prepared.stage === 'EVENT_PENDING' && prepared.event ? resolvePlayerWeeklyEvent(prepared.profile, prepared.event.choices[0].id, now).profile : prepared.profile;
@@ -828,6 +959,9 @@ export function rebirthPlayer(profileInput: PlayerProfile, now = new Date(), pos
   // Season numbers restart at 1, so per-season markers from the last generation must not carry over.
   profile.winterHolidaySeason = undefined;
   profile.transferWindowKey = undefined;
+  profile.earthCup = undefined;
+  profile.nationalCaps = 0;
+  profile.nationalGoals = 0;
   profile.weekStage = 'READY';
   profile.trainer = undefined;
   profile.energy = profile.maxEnergy;

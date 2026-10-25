@@ -214,10 +214,11 @@ function runCoachTrial(trial: number): ModeResult {
   const metrics: Record<string, number> = { seasons: 0, rounds: 0, wins: 0, draws: 0, losses: 0, events: 0, offers: 0, boardSuccesses: 0, boardFailures: 0, halftimeChecks: 0, fullStandingsChecks: 0 };
   for (let seasonIndex = 0; seasonIndex < COACH_SEASONS; seasonIndex += 1) {
     let guard = 0;
-    while (profile.coachClubState!.fixtures.some((fixture) => !fixture.played)) {
+    // A dismissal on the final round also leaves the coach unemployed with every fixture played.
+    while (profile.coach!.status !== 'EMPLOYED' || profile.coachClubState!.fixtures.some((fixture) => !fixture.played)) {
       if (++guard > 200) throw new Error(`Coach season loop exceeded guard at trial=${trial}`);
       if (profile.coach!.status !== 'EMPLOYED') {
-        // Mid-season dismissal: take an open offer (or ask the agent for one) and continue at the new club.
+        // Dismissal: take an open offer (or ask the agent for one) and continue at the new club.
         const now = iso(start.getTime() + (metrics.rounds + 1) * 86_400_000);
         let offer = profile.coach!.jobOffers.find((item) => item.status === 'OPEN');
         if (!offer) {

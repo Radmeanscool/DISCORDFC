@@ -14,6 +14,7 @@ import { availableVersusCoin, listingAbilityScore, minimumVersusBid } from '../d
 import { GAME_BALANCE } from '../config/game-balance.js';
 import { BUILD_LABEL } from '../config/build-info.js';
 import { formatGameDate, nextMatchDate, seasonLabel, seasonYear } from '../domain/season-calendar.js';
+import { callUpRating, earthCupActive, earthCupStageName, EARTH_CUP_GROUP_MATCHES, EARTH_CUP_MIN_AGE, EARTH_CUP_MIN_APPEARANCE_SHARE, nationLabel, nextEarthCupYear, sortGroup } from '../domain/earth-cup.js';
 import {
   ABILITY_LABELS,
   COACH_ABILITIES,
@@ -100,6 +101,8 @@ function calendarLine(profile: PlayerProfile): string {
 }
 
 function nextFixtureLine(profile: PlayerProfile): string {
+  const cup = profile.earthCup;
+  if (cup && earthCupActive(profile) && cup.opponent) return `🌍 Earth Cup · ${earthCupStageName(cup.stage)} · vs **${nationLabel(cup.opponent)}**`;
   const club = profile.clubState;
   const fixture = club ? [...club.fixtures].sort((a, b) => a.matchday - b.matchday).find((item) => !item.played) : undefined;
   if (!club) return 'Dibuat saat minggu pertama.';
@@ -157,10 +160,12 @@ export function profileEmbed(profile: PlayerProfile): EmbedBuilder {
       field('📈 Skill', profile.detailedSkills ? formatDetailedSkills(profile) : 'Akan dimigrasikan pada aksi berikutnya.'),
       field('Atribut (radar)', abilities),
       field('Status', alerts.length ? alerts.join('\n') : 'Sehat · tidak ada program aktif'),
-      field('🏅 Total karier', `${profile.career.appearances} main · ${profile.career.wins}-${profile.career.draws}-${profile.career.losses}\n⚽ ${profile.career.goals} · 🅰️ ${profile.career.assists} · 🧤 ${profile.career.cleanSheets} · MVP ${profile.career.mvps ?? 0} · Tricks ${profile.unlockedTricks?.length ?? 0} · Honors ${profile.honors?.length ?? 0}`)
+      field('🏅 Total karier', `${profile.career.appearances} main · ${profile.career.wins}-${profile.career.draws}-${profile.career.losses}\n⚽ ${profile.career.goals} · 🅰️ ${profile.career.assists} · 🧤 ${profile.career.cleanSheets} · MVP ${profile.career.mvps ?? 0} · Tricks ${profile.unlockedTricks?.length ?? 0} · Honors ${profile.honors?.length ?? 0}${profile.nationalCaps ? `\n🌍 Timnas ${profile.nationalCaps} caps · ${profile.nationalGoals ?? 0} gol` : ''}`)
     )
     .setFooter({ text: 'Level skill dihitung sejak awal karier · formula pertandingan RECOVERY_INFERRED' });
 }
+
+const EARTH_CUP_STEP = 'Earth Cup berjalan. Tekan **▶ Next Week** untuk laga timnas berikutnya.';
 
 const NEXT_STEP: Record<NonNullable<PlayerProfile['weekStage']>, string> = {
   READY: 'Tekan **▶ Next Week**: update mingguan, event (jika ada), lalu pertandingan dimainkan langsung.',
@@ -182,7 +187,7 @@ export function playerWeeklyEmbed(profile: PlayerProfile): EmbedBuilder {
     `⭐ Rating **${getRating(profile)}** · 💎 Value ${compactMoney(playerValue(getRating(profile), profile.age))}`,
     `💰 ${formatMoney(profile.money)} · 💠 ${profile.diamonds ?? 0} Diamonds · 👥 ${formatMoney(profile.fans ?? 0)} Fans`,
     '',
-    profile.careerStatus === 'RETIRED' ? 'Karier sudah pensiun. Tekan **Rebirth** untuk generasi baru.' : `➡️ ${NEXT_STEP[stage]}`
+    profile.careerStatus === 'RETIRED' ? 'Karier sudah pensiun. Tekan **Rebirth** untuk generasi baru.' : `➡️ ${earthCupActive(profile) && stage !== 'EXP_PENDING' ? EARTH_CUP_STEP : NEXT_STEP[stage]}`
   ].join('\n'))
     .addFields(
       field('❤️ Kondisi', `HP ${gauge(profile.hp, profile.maxHp)} ${profile.hp}\nEnergi ${gauge(profile.energy, profile.maxEnergy)} ${profile.energy}`, true),
@@ -211,6 +216,16 @@ function scoreAt(record: MatchRecord, minute: number): { team: number; opponent:
 function scoreboard(record: MatchRecord, score: { team: number; opponent: number }): string {
   const team = record.teamName ?? 'Tim kamu';
   return record.home === false ? `**${record.opponent}  ${score.opponent} – ${score.team}  ${team}**` : `**${team}  ${score.team} – ${score.opponent}  ${record.opponent}**`;
+}
+
+/** Earth Cup group table, the athlete's nation in bold. */
+function earthCupGroupTable(profile: PlayerProfile): string | undefined {
+  const cup = profile.earthCup;
+  if (!cup) return undefined;
+  return sortGroup(cup.group).map((row, index) => {
+    const name = row.code === cup.nation ? `**${nationLabel(row.code)}**` : nationLabel(row.code);
+    return `\`${index + 1}\` ${name} · ${row.points} pts · ${row.goalsFor}-${row.goalsAgainst}`;
+  }).join('\n');
 }
 
 /** Round table as in the original's post-match screen: the top three and the rows around the athlete's club. */
@@ -249,7 +264,7 @@ export function liveMatchEmbed(record: MatchRecord, minute: number): EmbedBuilde
     ...(personal && !personal.played ? ['', `Kamu tidak bermain (${personal.absence === 'INJURED' ? 'cedera' : personal.absence === 'SUSPENDED' ? 'skors' : 'kondisi fisik'}) dan menonton dari tribun.`] : [])
   ];
   if (minute === 0 && record.attendance) lines.splice(2, 0, `👥 ${record.attendance.toLocaleString('id-ID')} penonton`);
-  return embed(`🔴 LIVE · Matchday ${record.matchday ?? '-'}${record.date ? ` · ${formatGameDate(new Date(record.date))}` : ''}`, lines.join('\n'));
+  return embed(`🔴 LIVE · ${record.stageLabel ?? `Matchday ${record.matchday ?? '-'}`}${record.date ? ` · ${formatGameDate(new Date(record.date))}` : ''}`, lines.join('\n'));
 }
 
 /** Match recap shown after the live frames, with rewards and what happened this week. */
@@ -263,11 +278,11 @@ export function matchResultEmbed(result: WeekResult, weeklyNotes: string[] = [])
     ? `⭐ Rating **${personal.rating.toFixed(1)}** · ⚽ ${personal.goals} · 🅰️ ${personal.assists}${personal.mvp ? ' · 🏅 **MVP**' : ''}${personal.cleanSheet ? ' · 🧤 clean sheet' : ''}${personal.yellowCard ? ' · 🟨' : ''}${personal.redCard ? ' · 🟥' : ''}`
     : `Tidak bermain (${personal?.absence === 'INJURED' ? 'cedera' : personal?.absence === 'SUSPENDED' ? 'skors' : 'kondisi fisik'}).`;
   // The first narrative lines repeat the score and personal line shown above.
-  const afterMatch = result.narrative.filter((line) => !line.startsWith('Match Ready') && !/^\S.* \d+-\d+ .* · matchday \d+\.$/.test(line) && !line.startsWith('Rating '));
+  const afterMatch = result.narrative.filter((line) => !line.startsWith('Match Ready') && !line.startsWith('Earth Cup · ') && !/^\S.* \d+-\d+ .* · matchday \d+\.$/.test(line) && !line.startsWith('Rating '));
   const notes = [...weeklyNotes.filter((line) => !line.startsWith('Weekly Update') && !line.startsWith('Event mingguan')), ...afterMatch];
   const halftime = match.halftime ? ` (HT ${match.home === false ? `${match.halftime.opponent}–${match.halftime.team}` : `${match.halftime.team}–${match.halftime.opponent}`})` : '';
   const crowd = [match.attendance ? `👥 ${match.attendance.toLocaleString('id-ID')} penonton` : '', match.mvpName ? `🏅 MVP: **${match.mvpName}**` : ''].filter(Boolean).join(' · ');
-  const item = embed(`${title} · Matchday ${match.matchday ?? '-'}${match.date ? ` · ${formatGameDate(new Date(match.date))}` : ''}`, [
+  const item = embed(`${title} · ${match.stageLabel ?? `Matchday ${match.matchday ?? '-'}`}${match.date ? ` · ${formatGameDate(new Date(match.date))}` : ''}`, [
     `${scoreboard(match, { team: match.playerGoals, opponent: match.opponentGoals })}${halftime}`,
     '',
     ...(goals.length ? goals : ['Tanpa gol.']),
@@ -286,10 +301,35 @@ export function matchResultEmbed(result: WeekResult, weeklyNotes: string[] = [])
     const rows = [...top, ...(own && !top.includes(own) ? [own] : [])].map((item) => `\`${item.rating.toFixed(1)}\` ${item.user ? `**${item.name}**` : item.name} · ${item.position}`);
     item.addFields(field('⭐ Rating pemain', rows.join('\n'), true));
   }
-  const table = roundTable(result.profile);
-  if (table) item.addFields(field(`📊 Klasemen setelah MD ${match.matchday ?? '-'}`, table, true));
+  if (match.competition === 'EARTH_CUP') {
+    const group = earthCupGroupTable(result.profile);
+    if (group && (result.profile.earthCup?.history.length ?? 0) <= EARTH_CUP_GROUP_MATCHES) item.addFields(field('🌍 Klasemen grup', group, true));
+  } else {
+    const table = roundTable(result.profile);
+    if (table) item.addFields(field(`📊 Klasemen setelah MD ${match.matchday ?? '-'}`, table, true));
+  }
   if (notes.length) item.addFields(field('Minggu ini', notes.map((line) => `• ${line}`).join('\n')));
   if (result.award) item.addFields(field('🌍 World Footballer', `Pemenang: **${result.award.winner}** · skor kamu ${result.award.userScore}${result.award.userWon ? ' · **KAMU MENANG!**' : ''}`));
+  return item;
+}
+
+/** National team page: next edition, call-up bar, and the current or last run. */
+export function earthCupEmbed(profile: PlayerProfile): EmbedBuilder {
+  const nation = profile.nationality ?? 'OTH';
+  const cup = profile.earthCup;
+  const nextYear = nextEarthCupYear(profile, profile.league.season);
+  const lines = [
+    `Timnas: **${nationLabel(nation)}** · ${profile.nationalCaps ?? 0} caps · ${profile.nationalGoals ?? 0} gol`,
+    `Earth Cup diadakan tiap 4 tahun di musim panas. Berikutnya: **${nextYear}** (setelah musim ${seasonLabel(nextYear - 1)}).`,
+    `Syarat dipanggil: usia ${EARTH_CUP_MIN_AGE}+, rating **${callUpRating(nation, profile.position)}+** (kamu ${getRating(profile)}), main minimal ${Math.round(EARTH_CUP_MIN_APPEARANCE_SHARE * 100)}% laga liga musim itu.`
+  ];
+  const item = embed('🌍 Earth Cup', lines.join('\n'));
+  if (!cup) return item;
+  const status = cup.status === 'ACTIVE' ? `berjalan · berikutnya ${earthCupStageName(cup.stage)} vs **${nationLabel(cup.opponent!)}**` : cup.status === 'CHAMPION' ? '🏆 **JUARA**' : `tersingkir di ${earthCupStageName(Math.max(0, cup.history.length ? cup.history[cup.history.length - 1].stage : cup.stage))}`;
+  const results = cup.history.map((match) => `${earthCupStageName(match.stage)} · vs ${nationLabel(match.opponent)} **${match.goalsFor}–${match.goalsAgainst}**${match.penalties ? ` (pen ${match.penalties.for}–${match.penalties.against})` : ''}${match.personal ? ` · ⭐ ${match.personal.rating.toFixed(1)}${match.personal.goals ? ` · ⚽ ${match.personal.goals}` : ''}` : cup.calledUp ? ' · absen' : ''}`);
+  item.addFields(field(`Earth Cup ${cup.year} · ${cup.calledUp ? 'kamu dipanggil' : 'tidak dipanggil'}`, `Status: ${status}`));
+  item.addFields(field('Grup', earthCupGroupTable(profile) ?? '-', true));
+  if (results.length) item.addFields(field('Hasil', results.join('\n').slice(0, 1024), true));
   return item;
 }
 

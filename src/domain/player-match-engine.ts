@@ -4,6 +4,7 @@ import { advanceContractSeason } from './contract-engine.js';
 import { getRating, SeededRandom, type RandomSource } from './engine.js';
 import { formatMoney } from './format.js';
 import { clubStrengthByName, leagueLabel, leagueTier, officialClubByName, resolveClubLeagueId, stableHash } from './league-engine.js';
+import { scheduleEarthCup } from './earth-cup.js';
 import { buildMatchRatings, buildMatchTimeline } from './match-timeline.js';
 import { RECOVERY_PLAYERS_BY_CLUB, recoveryPositionGroup, type RecoveryClubRecord } from '../config/recovery-data.js';
 import { generateTransferOffers } from './official-club-engine.js';
@@ -314,6 +315,7 @@ export function finishPlayerSeason(profileInput: PlayerProfile, now: Date, rng: 
   const offers = generateTransferOffers(profile, rng, averageRating, stats.appearances / fixtures);
   profile.transferOffers = [...(profile.transferOffers ?? []).map((offer) => offer.status === 'OPEN' ? { ...offer, status: 'EXPIRED' as const } : offer), ...offers].slice(-12);
   if (offers.length) narrative.push(`${offers.length} klub mengajukan tawaran transfer: ${offers.map((offer) => `${offer.clubName} (${formatMoney(offer.weeklySalary)}/minggu)`).join(', ')}.`);
+  narrative.push(...scheduleEarthCup(profile, completedSeason, stats.appearances, fixtures, rng));
   profile.seasonStats = freshSeasonStats(profile.league.season);
   profile.discipline = { season: profile.league.season, yellowCards: 0, suspendedMatches: profile.discipline?.suspendedMatches ?? 0 };
   profile.updatedAt = now.toISOString();

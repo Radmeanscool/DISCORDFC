@@ -371,7 +371,9 @@ export interface MatchRecord {
   formulaVersion?: string;
   /** playerGoals/opponentGoals stay the team score; this block is the athlete's own output. */
   personal?: PersonalMatchPerformance;
-  competition?: 'LEAGUE' | 'CHAMPIONS';
+  competition?: 'LEAGUE' | 'CHAMPIONS' | 'EARTH_CUP';
+  /** Round label for cup matches (e.g. "Earth Cup · Quarter-final"); league matches show the matchday. */
+  stageLabel?: string;
   matchday?: number;
   home?: boolean;
   teamName?: string;
@@ -486,6 +488,43 @@ export interface ChampionsLeagueState {
   aggregate: number;
   status: 'QUALIFIED' | 'ACTIVE' | 'ELIMINATED' | 'CHAMPION';
   history?: ChampionsMatchSummary[];
+}
+
+export interface EarthCupStanding {
+  code: string;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  points: number;
+}
+
+export interface EarthCupMatch {
+  stage: number;
+  opponent: string;
+  goalsFor: number;
+  goalsAgainst: number;
+  penalties?: { for: number; against: number };
+  /** The athlete's own line; absent when the nation played without them. */
+  personal?: { goals: number; assists: number; rating: number };
+}
+
+/** One Earth Cup edition for the athlete's nation (RECOVERY_INFERRED tournament, see earth-cup.ts). */
+export interface EarthCupState {
+  year: number;
+  /** League season the tournament follows. */
+  season: number;
+  nation: string;
+  calledUp: boolean;
+  status: 'ACTIVE' | 'ELIMINATED' | 'CHAMPION';
+  /** Next stage: 0–2 group matchdays, 3 Round of 16, 4 Quarter-final, 5 Semi-final, 6 Final. */
+  stage: number;
+  /** Group order: the nation first, then the three drawn rivals. */
+  group: EarthCupStanding[];
+  opponent?: string;
+  history: EarthCupMatch[];
 }
 
 export interface AchievementState {
@@ -929,6 +968,11 @@ export interface PlayerProfile {
   sponsorHistory?: PlayerSponsorContract[];
   charm?: number;
   unlockedTricks?: string[];
+  /** Current or most recent Earth Cup for the athlete's nation. */
+  earthCup?: EarthCupState;
+  /** International caps and goals across every Earth Cup of this generation. */
+  nationalCaps?: number;
+  nationalGoals?: number;
   /** Trick currently being learned; it unlocks when the week arrives or when accelerated with Diamonds. */
   trickTraining?: TrickTrainingState;
   honors?: HonorRecord[];

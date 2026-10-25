@@ -9,6 +9,8 @@ import { handleComponent } from '../src/discord/handlers.js';
 // Live-match frames are still sent, just without the real-time pause.
 process.env.MATCH_ANIMATION_MS = '1';
 import { JsonPlayerStore } from '../src/storage/json-store.js';
+import { createEarthCup } from '../src/domain/earth-cup.js';
+import { SeededRandom } from '../src/domain/engine.js';
 
 /** Minimal stand-in for a Discord component interaction; records every payload the handler sends. */
 class FakeComponent {
@@ -271,5 +273,31 @@ test('components refuse other users and stale lineup rounds', async () => {
     assert.match(intruder.notices[0] ?? '', /bukan milik Anda/);
     const stale = action(home.ids, 'vl:start:').replace(/vl:start:\d+:/, 'vl:start:9:');
     assert.match(await owner.fail(stale), /Round sudah berganti/);
+  });
+});
+
+test('Earth Cup matches play live from Next Week and the national panel shows the run', async () => {
+  await withStore(async (store) => {
+    const player = new Session(store, '100000000000000077');
+    await player.click('menu-player');
+    await player.click('player-country-select', ['IDN']);
+    await player.click('player-create-select:IDN', ['ST']);
+    const profile = (await store.get(player.userId))!;
+    profile.earthCup = createEarthCup('IDN', 2030, 4, true, new SeededRandom(12));
+    profile.weekStage = 'SEASON_BREAK';
+    profile.unassignedMatchExp = 0;
+    await store.save(profile);
+    const home = await player.click('menu-player');
+    assert.match(JSON.stringify(home.embeds), /Earth Cup/);
+    const match = await player.click('next-week');
+    assert.equal(match.frames.length, 7, 'kick-off to full-time frames');
+    assert.match(match.frames[0].title ?? '', /LIVE · Earth Cup · Grup · Laga 1/);
+    assert.match(match.embeds[0].title ?? '', /Earth Cup · Grup · Laga 1/);
+    assert.ok(match.embeds[0].fields?.some((field) => field.name.includes('Klasemen grup')));
+    const saved = (await store.get(player.userId))!;
+    assert.equal(saved.earthCup?.history.length, 1);
+    const panel = await player.click('player-earth-cup');
+    assert.match(panel.embeds[0].title ?? '', /Earth Cup/);
+    assert.match(JSON.stringify(panel.embeds[0]), /Indonesia/);
   });
 });

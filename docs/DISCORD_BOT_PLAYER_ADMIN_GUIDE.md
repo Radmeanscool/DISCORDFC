@@ -17,7 +17,7 @@ Game ini **bukan replika 1:1** Football Rising Star asli: formula server, live b
 ### Status verifikasi terakhir
 
 - Build TypeScript: berhasil
-- Test suite: **126 lulus, 0 gagal**
+- Test suite: **159 lulus, 0 gagal**
 - Alur handler end-to-end (Player, Coach, Versus) dengan validasi batas Discord: lulus
 - Migrasi save versi sebelumnya: diuji
 - Outbox DM Versus (delivery, retry, idempotency): diuji
@@ -94,6 +94,7 @@ Hub menampilkan tanggal kalender game, musim (mis. 2026/27), rating, **Value**, 
 - **Event**: jika muncul, pilih respons di menu; setelah memilih, pertandingan langsung dimulai. Event dan match boleh terjadi di minggu yang sama, bergantian.
 - **Match live**: pesan diperbarui dari kick-off sampai peluit panjang (0′, 15′, 30′, HT, 60′, 75′, FT) dengan gol, peluang, penyelamatan, dan kartu; momen pemain Anda ditebalkan. Hasil sudah tersimpan sebelum animasi berjalan. Jeda antar-frame diatur `MATCH_ANIMATION_MS` (default 1500; `0` = langsung ke hasil). Fixture liga lain di round itu ikut disimulasikan sehingga klasemen selalu lengkap. Jika cedera, terskors, atau kondisi buruk, Anda menonton dari tribun tetapi klub tetap bermain.
 - **Kalender** (`RECOVERY_INFERRED`, mengikuti rekaman): laga mingguan mulai Agustus; setelah ronde pertengahan (pertengahan Desember) muncul **Winter Break Begins!** dan liga lanjut Januari; musim selesai Mei.
+- **Liburan Winter Break**: minggu pertama setelah winter break selalu membawa satu event liburan per musim. Pilih berlatih dengan **King of Soccer** (+100 EXP langsung ke skill utama terlemah, seperti di rekaman), liburan keluarga (energi/HP pulih, +2 charm), atau pulang kampung (+50 fans).
 - **Transfer window**: musim panas (4 ronde pertama), Januari (3 ronde setelah winter break), dan season break. Klub mengirim tawaran di awal tiap window jika performamu bagus (lihat Personal → Transfer). Pindah di tengah musim melanjutkan liga klub baru dari ronde yang sama.
 - **Hasil laga** menampilkan jumlah penonton, MVP, rating pemain, dan klasemen setelah ronde itu, seperti layar pasca-laga game asli.
 - **Alokasi EXP**: pilih **satu** skill (semua EXP masuk ke sana), **beberapa** skill (dibagi rata), atau **⚡ Auto** (dibagi ke skill utama posisi). EXP yang melebihi nilai maksimal mengalir ke skill lain; jika semua skill sudah 99, EXP dikonversi ke money.
@@ -104,7 +105,8 @@ Hub menampilkan tanggal kalender game, musim (mis. 2026/27), rating, **Value**, 
 
 - **Regular Training** dengan 7 kategori asli (Shoot, Dribbling, Speed, Stamina, Pass, Defense, Physical): sekali per minggu, memakai energi; EXP masuk ke skill terkait (pemetaan skill `RECOVERY_INFERRED`).
 - **Detailed Skills**: pilih satu dari 12 skill; selesai pada Weekly Update berikutnya.
-- **Tricks**: membuka trick jika syarat skill terpenuhi (skala 1–99); trick menambah peluang gol dan rating.
+- **Trick Training**: mulai latihan trick jika syarat level skill terpenuhi; latihan butuh **3 minggu** dan bisa diselesaikan langsung dengan **Percepat (50 💠 Diamonds)**, seperti di rekaman (durasi `RECOVERY_INFERRED`). Hanya satu trick dilatih sekaligus; trick terbuka menambah peluang gol dan rating.
+- **Kiper** melihat nama skill khusus kiper seperti di game asli: Reaction, Hand Toss, GK Kick, Save Penalty, Hold Position, GK Pass Ball, Command Defense, Balance, Jump, Willpower (Off-ball Running disembunyikan).
 - **Trainer**: sewa trainer (biaya per minggu) untuk EXP mingguan otomatis; bisa dilepas kapan saja.
 - **Culture Study** (tombol Personal): Science/Arts/History, memberi charm dan EXP skill.
 
@@ -134,7 +136,18 @@ Kontrak dihitung dalam **season**. Tombol **Renew** aktif pada season terakhir k
 - **Honors**: Hall of Honor (Personal/Team/National), World Footballer terakhir, dan klaim achievement yang siap.
 - **Champions**: tersedia jika klub lolos (4 besar divisi 1). Ronde dibuka bertahap mengikuti matchday liga (ronde 1 setelah matchday 8, dst.); lawan klub kontinental; seri diakhiri adu penalti.
 
-### 3.9 Career, pensiun, rebirth
+### 3.9 Earth Cup (turnamen antar negara)
+
+Negara asal yang dipilih saat membuat pemain dipakai di sini, bukan untuk memilih klub. Semua aturan di bawah `RECOVERY_INFERRED`.
+
+- Diadakan **tiap 4 tahun** di musim panas setelah musim liga (2030, 2034, …). Karier yang mulai 2026 mendapat Earth Cup pertama setelah musim 2029/30.
+- **Panggilan timnas** saat musim ditutup: usia 17+, main minimal 30% laga liga musim itu, dan rating minimal sesuai kekuatan negara dan posisi (negara kuat dan penyerang butuh rating lebih tinggi; kiper dan bek lebih rendah). Syarat dan rating kamu tampil di menu **🌍 Earth Cup**.
+- **Format**: 32 negara, grup berisi 4 tim dari pot berbeda (3 laga, 2 teratas lolos), lalu Round of 16 → Quarter-final → Semi-final → Final. Laga gugur yang seri diakhiri adu penalti.
+- Tiap laga dimainkan dengan **▶ Next Week** selama season break, lengkap dengan match live, rating, MVP, dan klasemen grup. Rekan dan lawan memakai nama pemain asli dari roster overlay jika datanya ada. Saat Earth Cup berjalan, musim baru belum bisa dimulai.
+- Hadiah: EXP dan bonus laga seperti biasa, fans lebih banyak, caps/gol timnas di profil, dan honor **National** "Earth Cup <tahun>" jika juara.
+- Jika tidak dipanggil, negaramu tetap bermain dan hasil akhirnya dilaporkan.
+
+### 3.10 Career, pensiun, rebirth
 
 Panel **Career** menampilkan riwayat season dan generasi sebelumnya. Pensiun sukarela tersedia mulai usia 30 (konfirmasi dua langkah); pensiun otomatis usia 34 atau setelah 20 tahun karier. **Rebirth** memulai generasi baru (usia 15, posisi bisa diganti, bonus skill per rebirth) dengan money, honors, dan riwayat dipertahankan.
 
